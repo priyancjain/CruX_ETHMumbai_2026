@@ -261,6 +261,21 @@ async def get_wallet_data(wallet_address: str) -> dict:
 
         # Builder signal
         "contract_deploy_count": base_features["contract_deploy_count"],
+
+        # Raw transfers for transaction storage + LLM analysis (last 100)
+        "raw_transfers": [
+            {
+                "hash": t.get("hash", ""),
+                "from": t.get("from", ""),
+                "to": t.get("to", ""),
+                "value": t.get("value"),
+                "asset": t.get("asset", ""),
+                "category": t.get("category", ""),
+                "blockNum": t.get("blockNum", ""),
+                "timestamp": t.get("metadata", {}).get("blockTimestamp", ""),
+            }
+            for t in (base_transfers[-100:] if isinstance(base_transfers, list) else [])
+        ],
     }
 
     # Log summary

@@ -22,6 +22,7 @@ class AgentScoreState(TypedDict, total=False):
     # Computed
     features: dict  # The 22-signal feature vector
     anomaly_result: dict  # { score: float, is_anomaly: bool }
+    tx_analysis: dict  # LLM transaction analysis { summary, patterns, risk_indicators, activity_profile }
 
     # GPT-o3 output
     gpt_response: dict  # { score, tier, collateral_requirement, max_loan_usdc, rationale, key_factors, risk_flags }

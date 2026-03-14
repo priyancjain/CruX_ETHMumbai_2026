@@ -8,6 +8,7 @@ from app.pipeline.nodes import (
     fetch_ens_ensip25,
     node_aggregate_features,
     run_anomaly,
+    analyze_transactions,
     run_gpt_o3,
     save_score,
     anchor_onchain,
@@ -20,13 +21,14 @@ def build_graph() -> StateGraph:
     """Build the 9-node LangGraph scoring pipeline."""
     graph = StateGraph(AgentScoreState)
 
-    # Add all 9 nodes
+    # Add all 10 nodes
     graph.add_node("fetch_platforms", fetch_platforms)
     graph.add_node("fetch_onchain", fetch_onchain)
     graph.add_node("fetch_erc8004", fetch_erc8004)
     graph.add_node("fetch_ens_ensip25", fetch_ens_ensip25)
     graph.add_node("aggregate_features", node_aggregate_features)
     graph.add_node("run_anomaly", run_anomaly)
+    graph.add_node("analyze_transactions", analyze_transactions)
     graph.add_node("run_gpt_o3", run_gpt_o3)
     graph.add_node("save_score", save_score)
     graph.add_node("anchor_onchain", anchor_onchain)
@@ -38,7 +40,8 @@ def build_graph() -> StateGraph:
     graph.add_edge("fetch_erc8004", "fetch_ens_ensip25")
     graph.add_edge("fetch_ens_ensip25", "aggregate_features")
     graph.add_edge("aggregate_features", "run_anomaly")
-    graph.add_edge("run_anomaly", "run_gpt_o3")
+    graph.add_edge("run_anomaly", "analyze_transactions")
+    graph.add_edge("analyze_transactions", "run_gpt_o3")
     graph.add_edge("run_gpt_o3", "save_score")
     graph.add_edge("save_score", "anchor_onchain")
     graph.add_edge("anchor_onchain", END)
@@ -73,6 +76,7 @@ async def run_scoring_pipeline(wallet_address: str, request_id: str, agent_id: s
         "heyelsa_data": {},
         "features": {},
         "anomaly_result": {},
+        "tx_analysis": {},
         "gpt_response": {},
         "score_id": "",
         "error": "",

@@ -274,6 +274,31 @@ async def node_aggregate_features(state: AgentScoreState) -> dict:
                     store_positions(agent_id, wallet, heyelsa)
                 except Exception as e:
                     logger.warning(f"HeyElsa storage failed (non-blocking): {e}")
+
+            # Store Alchemy transfers (always available, no payment needed)
+            raw_transfers = state.get("onchain_data", {}).get("raw_transfers", [])
+            if raw_transfers:
+                try:
+                    alchemy_tx_data = {
+                        "transaction_history": [
+                            {
+                                "hash": t.get("hash", ""),
+                                "from": t.get("from", ""),
+                                "to": t.get("to", ""),
+                                "value": t.get("value"),
+                                "asset": t.get("asset", ""),
+                                "category": t.get("category", ""),
+                                "blockNumber": t.get("blockNum", ""),
+                                "timestamp": t.get("timestamp", ""),
+                                "network": "base",
+                            }
+                            for t in raw_transfers if t.get("hash")
+                        ]
+                    }
+                    store_transactions(agent_id, wallet, alchemy_tx_data)
+                    logger.info(f"[Node 5] Stored {len(alchemy_tx_data['transaction_history'])} Alchemy transactions")
+                except Exception as e:
+                    logger.warning(f"Alchemy tx storage failed (non-blocking): {e}")
     except Exception as e:
         logger.warning(f"Failed to upsert agent/features: {e}")
 
@@ -300,6 +325,102 @@ async def run_anomaly(state: AgentScoreState) -> dict:
         "anomaly_result": anomaly_result,
         "features": features,
     }
+
+
+# ── NODE 6.5: LLM Transaction Analysis ────────────────────────────────────
+TX_ANALYSIS_PROMPT = """You are a blockchain transaction analyst for AI agents.
+Analyze the following transactions from an AI agent's wallet on Base chain.
+
+Return a JSON object with:
+- "summary": 2-3 sentence overview of the agent's transaction behavior
+- "patterns": list of 3-5 behavioral patterns observed (e.g. "Regular DeFi swaps on Uniswap", "Weekly ETH transfers")
+- "risk_indicators": list of any suspicious patterns (empty list if none). Examples: wash trading, circular transfers, dust attacks
+- "notable_transactions": list of 1-3 most significant transactions with brief description
+- "activity_profile": one of "active_trader", "defi_user", "holder", "nft_collector", "dormant", "mixed"
+
+Return ONLY valid JSON. No markdown, no explanation outside the JSON."""
+
+
+async def analyze_transactions(state: AgentScoreState) -> dict:
+    """LLM-powered analysis of agent's transaction history."""
+    logger.info(f"\n{'='*60}")
+    logger.info(f"  NODE 6.5: LLM TRANSACTION ANALYSIS")
+    logger.info(f"{'='*60}")
+
+    raw_transfers = state.get("onchain_data", {}).get("raw_transfers", [])
+
+    if not raw_transfers:
+        logger.info("  No transactions to analyze — skipping")
+        return {"tx_analysis": {
+            "summary": "No transactions found for this wallet.",
+            "patterns": [],
+            "risk_indicators": [],
+            "notable_transactions": [],
+            "activity_profile": "dormant",
+        }}
+
+    # Take last 50 transactions for analysis
+    txs_for_analysis = raw_transfers[-50:]
+
+    # Format transactions for the LLM
+    tx_lines = []
+    for t in txs_for_analysis:
+        val = t.get("value") or 0
+        tx_lines.append(
+            f"  {t.get('timestamp', '?')[:19]} | {t.get('category', '?'):<8} | "
+            f"{t.get('asset', '?'):<8} | value={val} | "
+            f"from={t.get('from', '?')[:10]}... → to={t.get('to', '?')[:10]}..."
+        )
+
+    tx_text = "\n".join(tx_lines)
+    user_prompt = (
+        f"WALLET: {state['wallet_address']}\n"
+        f"TOTAL TRANSACTIONS: {len(raw_transfers)}\n"
+        f"SHOWING LAST {len(txs_for_analysis)}:\n\n{tx_text}"
+    )
+
+    try:
+        settings = get_settings()
+        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": TX_ANALYSIS_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_completion_tokens=2048,
+        )
+
+        raw_text = response.choices[0].message.content.strip()
+
+        # Parse JSON (handle markdown code blocks)
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("```")[1]
+            if raw_text.startswith("json"):
+                raw_text = raw_text[4:]
+            raw_text = raw_text.strip()
+
+        tx_analysis = json.loads(raw_text)
+
+        logger.info(f"  Activity Profile: {tx_analysis.get('activity_profile', '?')}")
+        logger.info(f"  Summary: {tx_analysis.get('summary', '')[:120]}...")
+        logger.info(f"  Patterns: {tx_analysis.get('patterns', [])}")
+        if tx_analysis.get("risk_indicators"):
+            logger.warning(f"  Risk Indicators: {tx_analysis['risk_indicators']}")
+        logger.info(f"  Notable Txs: {len(tx_analysis.get('notable_transactions', []))}")
+
+        return {"tx_analysis": tx_analysis}
+
+    except Exception as e:
+        logger.error(f"  Transaction analysis failed: {e}")
+        return {"tx_analysis": {
+            "summary": "Transaction analysis unavailable.",
+            "patterns": [],
+            "risk_indicators": [],
+            "notable_transactions": [],
+            "activity_profile": "unknown",
+        }}
 
 
 # ── NODE 7: Run GPT-o3 Scoring ──────────────────────────────────────────────
@@ -435,10 +556,12 @@ async def save_score(state: AgentScoreState) -> dict:
     except Exception:
         pass
 
-    # Embed ENSIP-25 data into raw_features for persistence
+    # Embed ENSIP-25 + tx_analysis into raw_features for persistence
     ens_data = state.get("ens_data", {})
-    features_with_ensip25 = dict(features)
-    features_with_ensip25["ensip25"] = ens_data
+    tx_analysis = state.get("tx_analysis", {})
+    enriched_features = dict(features)
+    enriched_features["ensip25"] = ens_data
+    enriched_features["tx_analysis"] = tx_analysis
 
     score_row = {
         "agent_id": agent_id,
@@ -450,7 +573,7 @@ async def save_score(state: AgentScoreState) -> dict:
         "rationale": gpt["rationale"],
         "key_factors": gpt.get("key_factors", []),
         "risk_flags": gpt.get("risk_flags", []),
-        "raw_features": features_with_ensip25,
+        "raw_features": enriched_features,
         "model_used": "o3",
         "anomaly_score": features.get("anomaly_score", 0),
         "is_anomaly": features.get("is_anomaly", False),
