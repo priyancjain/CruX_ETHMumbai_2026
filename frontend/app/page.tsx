@@ -8,6 +8,7 @@ import {
   discoverAllAgents,
   getStats,
   getPlatforms,
+  searchAgents,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import AgentCard from "@/components/AgentCard";
@@ -16,9 +17,11 @@ import PlatformTabs from "@/components/PlatformTabs";
 export default function Home() {
   const router = useRouter();
 
-  const [wallet, setWallet] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchMode, setSearchMode] = useState<"name" | "wallet">("name");
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
+  const [isSearchResults, setIsSearchResults] = useState(false);
 
   const [platform, setPlatform] = useState("virtuals");
   const [agents, setAgents] = useState<any[]>([]);
@@ -43,8 +46,11 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    loadAgents();
-  }, [platform, page]);
+    // Only reload agents if not showing search results
+    if (!isSearchResults) {
+      loadAgents();
+    }
+  }, [platform, page, isSearchResults]);
 
   async function loadAgents() {
     setBrowseLoading(true);
@@ -85,6 +91,32 @@ export default function Home() {
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
+    
+    if (searchMode === "name") {
+      if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+        setSearchError("Enter at least 2 characters to search.");
+        return;
+      }
+      setSearchLoading(true);
+      setSearchError("");
+      try {
+        const res = await searchAgents(searchQuery.trim());
+        const found = res.agents || [];
+        setAgents(found);
+        setIsSearchResults(true);
+        if (found.length === 0) {
+          setSearchError(`No agents found for "${searchQuery}". Try a different name, purpose or platform.`);
+        }
+      } catch (err: any) {
+        setSearchError(err.message || "Search failed");
+      } finally {
+        setSearchLoading(false);
+      }
+      return;
+    }
+
+    // Wallet Mode Scoring Flow
+    const wallet = searchQuery.trim();
     if (!wallet || !wallet.startsWith("0x") || wallet.length !== 42) {
       setSearchError("Enter a valid EVM wallet address (0x...)");
       return;
@@ -125,69 +157,143 @@ export default function Home() {
   }
 
   return (
-    <div className="space-y-10">
-      {/* ── Hero ───────────────────────────────────── */}
-      <section className="pt-10 pb-2 text-center space-y-4">
-        <h1 className="font-display text-5xl md:text-6xl font-extrabold tracking-tight">
-          <span className="text-gradient">AgentScore</span>
+    <div className="space-y-12">
+
+      {/* ── Hero ── */}
+      <section className="pt-14 pb-6">
+        {/* Eyebrow */}
+        <div className="flex items-center gap-2 mb-5">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#1DB954]/40 bg-[#1DB954]/08 text-[#1DB954] text-[11px] font-mono font-semibold tracking-wider uppercase">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#1DB954] animate-pulse" />
+            On-Chain Credit Rating
+          </span>
+          <span className="text-[11px] font-mono text-gray-400">BASE · ETH Mumbai 2026</span>
+        </div>
+
+        {/* Main headline — left-aligned, editorial */}
+        <h1 className="font-display text-6xl md:text-8xl font-black tracking-tight text-gray-900 leading-[0.95] mb-6">
+          Agent<br />
+          <span className="text-[#1DB954]">Score.</span>
         </h1>
-        <p className="text-slate-400 text-lg max-w-xl mx-auto leading-relaxed">
-          Universal credit rating for AI agents. Browse, analyze, and score
-          autonomous agents across every platform.
+
+        <p className="text-gray-500 text-lg max-w-lg leading-relaxed font-body mb-8">
+          Universal credit infrastructure for autonomous AI agents.
+          Browse, score, and underwrite agents across every platform
+          using live on-chain behavioral data.
         </p>
 
-        {/* Search */}
-        <form onSubmit={handleSearch} className="max-w-lg mx-auto pt-2">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-              </div>
-              <input
-                type="text"
-                value={wallet}
-                onChange={(e) => setWallet(e.target.value)}
-                placeholder="Paste wallet address (0x...)"
-                className="w-full pl-10 pr-4 py-3 bg-surface-1 border border-surface-3/60 rounded-xl text-white text-sm font-mono placeholder-slate-600 focus:outline-none focus:border-accent/40 focus:shadow-glow transition-all"
-              />
-            </div>
+        {/* Search card — terminal style */}
+        <div className="max-w-2xl">
+          {/* Mode toggle */}
+          <div className="flex gap-0 mb-0 border border-[#e0e0e0] rounded-t-xl overflow-hidden bg-[#f5f5f5]">
             <button
-              type="submit"
-              disabled={searchLoading}
-              className="px-5 py-3 bg-accent/15 hover:bg-accent/25 border border-accent/20 text-accent rounded-xl text-sm font-display font-bold tracking-wide transition-all disabled:opacity-40"
+              type="button"
+              onClick={() => { setSearchMode("name"); setSearchError(""); }}
+              className={`flex-1 py-2.5 font-mono text-xs font-semibold tracking-widest uppercase transition-all border-r border-[#e0e0e0] ${
+                searchMode === "name"
+                  ? "bg-white text-[#1DB954] border-b-2 border-b-[#1DB954]"
+                  : "text-gray-400 hover:text-gray-700 hover:bg-white/60"
+              }`}
             >
-              {searchLoading ? "..." : "SCORE"}
+              Search by Name / Purpose
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSearchMode("wallet"); setSearchError(""); }}
+              className={`flex-1 py-2.5 font-mono text-xs font-semibold tracking-widest uppercase transition-all ${
+                searchMode === "wallet"
+                  ? "bg-white text-[#1DB954] border-b-2 border-b-[#1DB954]"
+                  : "text-gray-400 hover:text-gray-700 hover:bg-white/60"
+              }`}
+            >
+              ⚡ Score by Wallet ID
             </button>
           </div>
-          {searchError && (
-            <p className="text-red-400 mt-2 text-xs font-mono">{searchError}</p>
+
+          {/* Input row */}
+          <form onSubmit={handleSearch}>
+            <div className="flex border border-t-0 border-[#e0e0e0] rounded-b-xl overflow-hidden bg-white shadow-sm">
+              <div className="relative flex-1">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setSearchError("");
+                    if (e.target.value === "") {
+                      setIsSearchResults(false);
+                      loadAgents();
+                    }
+                  }}
+                  placeholder={searchMode === "name"
+                    ? "DeFi trading, arbitrage, NFT minting, any purpose..."
+                    : "0x Paste wallet address to score..."
+                  }
+                  className="w-full pl-10 pr-4 py-4 bg-transparent text-gray-900 text-sm font-mono placeholder-gray-400 focus:outline-none transition-all"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={searchLoading}
+                className="px-8 py-4 bg-[#1DB954] hover:bg-[#17a348] text-white font-display font-bold text-sm tracking-wide transition-all disabled:opacity-50 border-l border-[#e0e0e0]"
+              >
+                {searchLoading ? "···" : (searchMode === "name" ? "SEARCH" : "SCORE")}
+              </button>
+            </div>
+
+            {searchError && (
+              <p className="text-[#FF3B30] text-xs font-mono mt-2 flex items-center gap-1">
+                <span>⚠</span> {searchError}
+              </p>
+            )}
+            {searchLoading && searchMode === "wallet" && (
+              <p className="text-[#1DB954] mt-2 text-xs font-mono animate-pulse">
+                ► Scoring in progress — analyzing on-chain transactions...
+              </p>
+            )}
+          </form>
+
+          {/* Clear search banner */}
+          {isSearchResults && (
+            <div className="mt-3 flex items-center justify-between px-4 py-2 bg-[#1DB954]/08 border border-[#1DB954]/30 rounded-lg">
+              <span className="text-xs text-[#1DB954] font-mono font-semibold">
+                ✓ Results for &ldquo;{searchQuery}&rdquo;
+              </span>
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setSearchError("");
+                  setIsSearchResults(false);
+                  loadAgents();
+                }}
+                className="text-xs text-gray-400 hover:text-[#FF3B30] font-mono ml-4 transition-colors"
+              >
+                Clear ×
+              </button>
+            </div>
           )}
-          {searchLoading && (
-            <p className="text-accent/70 mt-2 text-xs font-mono animate-pulse">
-              Scoring in progress &mdash; analyzing onchain data...
-            </p>
-          )}
-        </form>
+        </div>
       </section>
 
-      {/* ── Stats ──────────────────────────────────── */}
+      {/* ── Stats row — DM Mono terminal readouts ── */}
       {stats && (
-        <div className="flex justify-center gap-3">
+        <div className="grid grid-cols-3 gap-0 border border-[#e0e0e0] rounded-xl overflow-hidden">
           {[
-            { value: stats.total_agents?.toLocaleString() || "0", label: "Agents" },
-            { value: stats.scored_agents?.toLocaleString() || "0", label: "Scored" },
-            { value: stats.avg_score || "0", label: "Avg Score" },
-          ].map((s) => (
+            { value: stats.total_agents?.toLocaleString() || "0", label: "Agents Indexed", color: "text-gray-900" },
+            { value: stats.scored_agents?.toLocaleString() || "0", label: "Scored", color: "text-[#1DB954]" },
+            { value: stats.avg_score || "0", label: "Avg Score / 1000", color: "text-[#007AFF]" },
+          ].map((s, i) => (
             <div
               key={s.label}
-              className="glass-card px-5 py-3 text-center min-w-[100px]"
+              className={`bg-white px-6 py-5 ${
+                i < 2 ? "border-r border-[#e0e0e0]" : ""
+              }`}
             >
-              <p className="text-xl font-display font-extrabold text-accent">
-                {s.value}
-              </p>
-              <p className="text-[10px] text-slate-500 font-mono tracking-wider uppercase mt-0.5">
-                {s.label}
-              </p>
+              <p className={`stat-number ${s.color}`}>{s.value}</p>
+              <p className="terminal-label mt-1">{s.label}</p>
             </div>
           ))}
         </div>
@@ -203,18 +309,22 @@ export default function Home() {
 
       {/* ── Agent Grid ─────────────────────────────── */}
       {browseLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="glass-card p-5 space-y-3">
-              <div className="flex gap-3">
-                <div className="w-10 h-10 rounded-xl shimmer" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-3.5 w-24 rounded shimmer" />
-                  <div className="h-2.5 w-32 rounded shimmer" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="glass-card overflow-hidden">
+              <div className="h-1 bg-gray-200 rounded-t-xl" />
+              <div className="p-6 space-y-4">
+                <div className="flex gap-4">
+                  <div className="w-14 h-14 rounded-xl shimmer flex-shrink-0" />
+                  <div className="flex-1 space-y-2.5 pt-1">
+                    <div className="h-4 w-28 rounded shimmer" />
+                    <div className="h-3 w-36 rounded shimmer" />
+                    <div className="h-5 w-16 rounded shimmer" />
+                  </div>
                 </div>
+                <div className="h-8 w-full rounded shimmer" />
+                <div className="h-3 w-24 rounded shimmer" />
               </div>
-              <div className="h-8 w-full rounded shimmer" />
-              <div className="h-3 w-20 rounded shimmer" />
             </div>
           ))}
         </div>
@@ -225,7 +335,7 @@ export default function Home() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 stagger-children">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 stagger-children">
           {agents.map((agent, i) => (
             <AgentCard
               key={`${agent.wallet_address}-${i}`}
@@ -247,24 +357,23 @@ export default function Home() {
 
       {/* ── Pagination ─────────────────────────────── */}
       {!browseLoading && agents.length > 0 && (
-        <div className="flex items-center justify-center gap-3 pb-8">
+        <div className="flex items-center justify-center gap-3 pb-10">
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1}
-            className="px-4 py-2 glass-card text-sm font-mono text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="px-5 py-2.5 bg-white border border-gray-200 text-sm font-display font-semibold text-gray-600 hover:text-gray-900 hover:border-gray-400 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
           >
-            &larr; PREV
+            ← Prev
           </button>
-          <span className="text-xs text-slate-500 font-mono px-3">
-            {page}
-            {totalPages > 0 && totalPages !== -1 ? ` / ${totalPages}` : ""}
+          <span className="text-xs text-gray-400 font-mono px-4 py-2 bg-gray-100 rounded-lg">
+            {page}{totalPages > 0 && totalPages !== -1 ? ` / ${totalPages}` : ""}
           </span>
           <button
             onClick={() => setPage((p) => p + 1)}
             disabled={totalPages > 0 && page >= totalPages}
-            className="px-4 py-2 glass-card text-sm font-mono text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="px-5 py-2.5 bg-white border border-gray-200 text-sm font-display font-semibold text-gray-600 hover:text-gray-900 hover:border-gray-400 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
           >
-            NEXT &rarr;
+            Next →
           </button>
         </div>
       )}

@@ -10,10 +10,12 @@ logger = logging.getLogger("agentscore.api.score")
 router = APIRouter()
 
 
+
 @router.post("", response_model=ScoreQueuedResponse | ScoreResponse)
 async def request_score(body: ScoreRequest):
     """Request a credit score for an agent wallet. Returns cached if valid."""
-    wallet = body.wallet_address
+    # Normalise wallet address to lowercase
+    wallet = body.wallet_address.lower()
 
     # Check for valid unexpired score
     existing = (
@@ -91,10 +93,13 @@ async def request_score(body: ScoreRequest):
 @router.get("/{wallet_address}", response_model=ScoreResponse)
 async def get_score(wallet_address: str):
     """Get the latest valid score for a wallet."""
+    # Normalise input address
+    w_low = wallet_address.lower()
+
     result = (
         anon_client.table("scores")
         .select("*")
-        .eq("wallet_address", wallet_address)
+        .eq("wallet_address", w_low)
         .gte("expires_at", datetime.now(timezone.utc).isoformat())
         .order("scored_at", desc=True)
         .limit(1)
@@ -125,15 +130,18 @@ async def get_score(wallet_address: str):
 @router.get("/{wallet_address}/history")
 async def get_score_history(wallet_address: str):
     """Get all scores for a wallet, ordered by most recent."""
+    w_low = wallet_address.lower()
+
     result = (
         anon_client.table("scores")
         .select("*")
-        .eq("wallet_address", wallet_address)
+        .eq("wallet_address", w_low)
         .order("scored_at", desc=True)
         .execute()
     )
 
     return {"wallet_address": wallet_address, "scores": result.data or []}
+
 
 
 @router.post("/sync", response_model=ScoreResponse)

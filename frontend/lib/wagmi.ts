@@ -8,6 +8,9 @@ import {
   coinbaseWallet,
 } from "@rainbow-me/rainbowkit/wallets";
 
+
+const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "73c66f7f2fb486bf97d6205cf145781a"; // Fallback placeholder for dev
+
 const connectors = connectorsForWallets(
   [
     {
@@ -15,7 +18,10 @@ const connectors = connectorsForWallets(
       wallets: [metaMaskWallet, coinbaseWallet],
     },
   ],
-  { appName: "AgentScore", projectId: "agentscore" }
+  { 
+    appName: "AgentScore", 
+    projectId: projectId 
+  }
 );
 
 export const wagmiConfig = createConfig({
@@ -27,3 +33,4 @@ export const wagmiConfig = createConfig({
   },
   ssr: true,
 });
+

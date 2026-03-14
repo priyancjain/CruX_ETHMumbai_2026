@@ -1,32 +1,108 @@
-# Environment variables
+# ── Environment Variables ──────────────────────────────────────────
+# NEVER commit secrets: API keys, DB URLs, wallet private keys, etc.
 .env
 .env.local
 .env.production
+.env.development
+.env.staging
+.env.*.local
+backend/.env
+frontend/.env.local
 
-# Python
+# ── Python ────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyo
+*.pyd
+.Python
 venv/
 .venv/
+env/
+ENV/
 *.egg-info/
 dist/
 build/
+pip-wheel-metadata/
+.mypy_cache/
+.dmypy.json
+.pytest_cache/
+.hypothesis/
+.coverage
+coverage.xml
+*.cover
+htmlcov/
 
-# Node.js
+# ── Node.js / Next.js ─────────────────────────────────────────────
 node_modules/
 .next/
 out/
+.nuxt/
+dist/
+.cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 
-# IDE
+# ── TypeScript build artifacts ────────────────────────────────────
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
+
+# ── Solidity / Contracts ──────────────────────────────────────────
+contracts/artifacts/
+contracts/cache/
+contracts/.deps/
+contracts/typechain/
+contracts/typechain-types/
+*.abi
+*.bin
+
+# ── IDE & Editor ──────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
+*.suo
+*.user
+.vs/
+*.sublime-project
+*.sublime-workspace
 
-# OS
+# ── OS generated ──────────────────────────────────────────────────
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# Misc
+# ── Logs & Debug ──────────────────────────────────────────────────
 *.log
+logs/
+npm-debug.log
+uvicorn.log
+
+# ── Testing / Scratch ─────────────────────────────────────────────
+# These test/scratch files are in the repo root — probably shouldn't be committed
+test_wallet.py
+test_heyelsa_tx.py
+backend/test_heyelsa_tx.py
+
+# ── Jupyter (if any exploratory notebooks) ───────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── AI / Tool files ───────────────────────────────────────────────
+.gemini/
+
+# ── Misc ──────────────────────────────────────────────────────────
+*.tmp
+*.temp
+*.bak
+*.orig
+.turbo/
+.venv

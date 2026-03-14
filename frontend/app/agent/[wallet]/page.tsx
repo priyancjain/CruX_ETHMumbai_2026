@@ -11,6 +11,7 @@ import PlatformBadge from "@/components/PlatformBadge";
 import PnLCard from "@/components/PnLCard";
 import TransactionTable from "@/components/TransactionTable";
 import PositionsList from "@/components/PositionsList";
+import LenderPortal from "@/components/LenderPortal";
 
 type Tab = "overview" | "transactions" | "positions";
 
@@ -27,11 +28,9 @@ export default function AgentPage() {
   const [scoring, setScoring] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
 
-  // Track the score ID at the moment we start polling, so we detect NEW scores
   const scoreIdBeforePolling = useRef<string | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Clean up polling interval
   const stopPolling = useCallback(() => {
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
@@ -39,9 +38,8 @@ export default function AgentPage() {
     }
   }, []);
 
-  // Start polling — uses ref-based comparison instead of stale closure
   const startPolling = useCallback(() => {
-    stopPolling(); // clear any existing interval first
+    stopPolling();
     let attempts = 0;
 
     pollIntervalRef.current = setInterval(async () => {
@@ -53,20 +51,14 @@ export default function AgentPage() {
       }
       try {
         const data = await getAgent(wallet).catch(() => null);
-        if (
-          data?.latest_score &&
-          data.latest_score.id !== scoreIdBeforePolling.current
-        ) {
-          // New score arrived — update everything and stop polling
+        if (data?.latest_score && data.latest_score.id !== scoreIdBeforePolling.current) {
           stopPolling();
           setAgent(data.agent);
           setScore(data.latest_score);
           setFeatures(data.features);
           setPnl(data.pnl);
           setScoring(false);
-          const hist = await getScoreHistory(wallet).catch(() => ({
-            scores: [],
-          }));
+          const hist = await getScoreHistory(wallet).catch(() => ({ scores: [] }));
           setHistory(hist.scores || []);
         }
       } catch {
@@ -75,7 +67,6 @@ export default function AgentPage() {
     }, 3000);
   }, [wallet, stopPolling]);
 
-  // Cleanup on unmount or wallet change
   useEffect(() => {
     return () => stopPolling();
   }, [wallet, stopPolling]);
@@ -85,21 +76,17 @@ export default function AgentPage() {
 
     const channel = supabase
       .channel(`score:${wallet}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "scores",
-          filter: `wallet_address=eq.${wallet}`,
-        },
-        (payload) => {
-          stopPolling();
-          setScore(payload.new);
-          setScoring(false);
-          loadData();
-        }
-      )
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "scores",
+        filter: `wallet_address=eq.${wallet}`,
+      }, (payload) => {
+        stopPolling();
+        setScore(payload.new);
+        setScoring(false);
+        loadData();
+      })
       .subscribe();
 
     return () => {
@@ -123,11 +110,9 @@ export default function AgentPage() {
       }
       setHistory(historyData.scores || []);
 
-      // If no score exists, ALWAYS call requestScore (backend handles dedup + stale cleanup)
       if (!agentData?.latest_score) {
         try {
           scoreIdBeforePolling.current = null;
-          console.log("[AgentPage] No score found — requesting scoring for", wallet);
           await requestScore(wallet);
           setScoring(true);
           startPolling();
@@ -135,7 +120,6 @@ export default function AgentPage() {
           console.error("[AgentPage] requestScore failed:", err);
         }
       }
-      // If score exists — just display, no polling needed
     } catch (err) {
       console.error("[AgentPage] loadData failed:", err);
       try {
@@ -154,7 +138,6 @@ export default function AgentPage() {
   async function handleRescore() {
     setScoring(true);
     try {
-      // Remember current score ID so we can detect when a NEW one arrives
       scoreIdBeforePolling.current = score?.id || null;
       await requestScore(wallet);
       startPolling();
@@ -166,60 +149,69 @@ export default function AgentPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-32">
-        <div className="text-center space-y-3">
-          <div className="w-12 h-12 rounded-2xl shimmer mx-auto" />
-          <p className="text-slate-500 font-mono text-sm animate-pulse">
-            Loading agent data...
-          </p>
+        <div className="text-center space-y-4">
+          <div className="flex gap-1 justify-center">
+            {[0,1,2].map(i => (
+              <div key={i} className="w-2 h-8 bg-[#1DB954] rounded-full animate-pulse" style={{ animationDelay: `${i * 0.15}s` }} />
+            ))}
+          </div>
+          <p className="text-gray-400 font-mono text-sm">Loading agent data...</p>
         </div>
       </div>
     );
   }
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "overview", label: "Overview" },
-    { id: "transactions", label: "Transactions" },
-    { id: "positions", label: "Positions" },
+  const tabs: { id: Tab; label: string; icon: string }[] = [
+    { id: "overview", label: "Overview", icon: "📊" },
+    { id: "transactions", label: "Transactions", icon: "🔁" },
+    { id: "positions", label: "Positions", icon: "💼" },
   ];
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {/* Header */}
+
+      {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-display font-extrabold text-white">
-            {agent?.agent_name || `Agent ${wallet.slice(0, 8)}...`}
-          </h1>
-          <p className="text-sm text-slate-500 font-mono">{wallet}</p>
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            {agent?.platform && <PlatformBadge platform={agent.platform} />}
+            <h1 className="text-3xl font-display font-black text-gray-900 tracking-tight">
+              {agent?.agent_name || `Agent ${wallet.slice(0, 8)}...`}
+            </h1>
+          </div>
+          <p className="text-sm text-gray-400 font-mono break-all">{wallet}</p>
           {agent?.ens_name && (
-            <p className="text-sm text-accent font-mono">{agent.ens_name}</p>
+            <p className="text-sm text-[#1DB954] font-mono">{agent.ens_name}</p>
           )}
         </div>
-        <div className="flex gap-2 items-center">
-          {agent?.platform && <PlatformBadge platform={agent.platform} />}
-          <button
-            onClick={handleRescore}
-            disabled={scoring}
-            className="px-4 py-2 bg-accent/15 hover:bg-accent/25 border border-accent/20 text-accent rounded-xl text-sm font-display font-bold tracking-wide transition-all disabled:opacity-40"
-          >
-            {scoring ? "SCORING..." : "RE-SCORE"}
-          </button>
-        </div>
+
+        {/* Rescore button */}
+        <button
+          onClick={handleRescore}
+          disabled={scoring}
+          className="flex-shrink-0 px-5 py-2.5 bg-[#1DB954]/10 hover:bg-[#1DB954]/20 border border-[#1DB954]/30 text-[#1DB954] rounded-xl text-sm font-display font-bold tracking-wide transition-all disabled:opacity-40"
+        >
+          {scoring ? "⏳ SCORING..." : "↺ RE-SCORE"}
+        </button>
       </div>
 
-      {/* Scoring in progress */}
+      {/* ── Scoring in progress ── */}
       {scoring && !score && (
-        <div className="glass-card p-6 text-center border-accent/15">
+        <div className="glass-card p-6 border-[#1DB954]/20">
           <div className="flex items-center justify-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-            <p className="text-accent/80 font-mono text-sm">
-              Scoring in progress &mdash; analyzing onchain data across platforms...
+            <div className="flex gap-1">
+              {[0,1,2].map(i => (
+                <div key={i} className="w-1.5 h-4 bg-[#1DB954] rounded-full animate-pulse" style={{ animationDelay: `${i * 0.15}s` }} />
+              ))}
+            </div>
+            <p className="text-[#1DB954] font-mono text-sm">
+              Scoring in progress — analyzing on-chain data across platforms...
             </p>
           </div>
         </div>
       )}
 
-      {/* Score Card */}
+      {/* ── Score Card ── */}
       {score && (
         <ScoreCard
           score={score.score}
@@ -234,59 +226,59 @@ export default function AgentPage() {
         />
       )}
 
-      {/* Tab Bar */}
-      <div className="flex gap-1 bg-surface-2/40 rounded-lg p-1 w-fit">
+      {/* ── Tab Bar ── */}
+      <div className="flex gap-0 bg-gray-100 rounded-xl p-1 w-fit border border-gray-200">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`text-xs font-mono px-4 py-2 rounded-md transition-all ${
+            className={`flex items-center gap-1.5 text-sm font-display font-semibold px-5 py-2 rounded-lg transition-all ${
               activeTab === tab.id
-                ? "bg-accent/15 text-accent border border-accent/20"
-                : "text-slate-500 hover:text-slate-300"
+                ? "bg-white text-gray-900 shadow-sm border border-gray-200"
+                : "text-gray-500 hover:text-gray-700"
             }`}
           >
+            <span>{tab.icon}</span>
             {tab.label}
           </button>
         ))}
       </div>
 
-      {/* Tab Content */}
+      {/* ── Tab Content ── */}
       {activeTab === "overview" && (
         <>
-          {/* PnL Card */}
           {pnl && <PnLCard pnl={pnl} />}
 
-          {/* Feature Radar + Score History */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {features && <FeatureRadar features={features} />}
             <ScoreHistory scores={history} />
           </div>
 
-          {/* Raw Features */}
+          {score && <LenderPortal wallet={wallet} score={score} />}
+
+          {/* Feature Vector */}
           {features && (
             <div className="glass-card p-6">
-              <h3 className="text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-4">
-                FEATURE VECTOR ({Object.keys(features).filter(
-                  (k) =>
-                    !["platforms_list", "id", "agent_id", "last_updated_at"].includes(k)
-                ).length} SIGNALS)
+              <h3 className="text-[10px] text-gray-400 font-mono tracking-widest uppercase mb-4">
+                Feature Vector ({Object.keys(features).filter(
+                  (k) => !["platforms_list", "id", "agent_id", "last_updated_at"].includes(k)
+                ).length} Signals)
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {Object.entries(features)
-                  .filter(
-                    ([k]) =>
-                      !["platforms_list", "id", "agent_id", "last_updated_at"].includes(k)
-                  )
+                  .filter(([k]) => !["platforms_list", "id", "agent_id", "last_updated_at"].includes(k))
                   .map(([key, value]) => (
                     <div
                       key={key}
-                      className="bg-surface-2/40 border border-surface-3/30 rounded-lg p-2.5"
+                      className="bg-gray-50 border border-gray-200 rounded-lg p-3"
                     >
-                      <p className="text-[10px] text-slate-500 font-mono truncate">
-                        {key}
-                      </p>
-                      <p className="text-sm font-mono font-medium text-slate-200 mt-0.5">
+                      <p className="text-[10px] text-gray-400 font-mono truncate">{key}</p>
+                      <p className={`text-sm font-mono font-semibold mt-0.5 ${
+                        String(value) === "true" ? "text-[#1DB954]" :
+                        String(value) === "false" ? "text-[#FF3B30]" :
+                        String(value) === "null" || String(value) === "0" ? "text-gray-400" :
+                        "text-gray-900"
+                      }`}>
                         {String(value)}
                       </p>
                     </div>
@@ -298,20 +290,18 @@ export default function AgentPage() {
       )}
 
       {activeTab === "transactions" && <TransactionTable wallet={wallet} />}
-
       {activeTab === "positions" && <PositionsList wallet={wallet} />}
 
-      {/* No score CTA */}
+      {/* ── No score CTA ── */}
       {!score && !scoring && (
-        <div className="text-center py-16 space-y-4">
-          <p className="text-slate-500 font-mono text-sm">
-            No score found for this agent.
-          </p>
+        <div className="text-center py-16 glass-card space-y-4">
+          <p className="text-5xl">📊</p>
+          <p className="text-gray-500 font-body text-sm">No score found for this agent.</p>
           <button
             onClick={handleRescore}
-            className="px-6 py-3 bg-accent/15 hover:bg-accent/25 border border-accent/20 text-accent rounded-xl font-display font-bold tracking-wide transition-all"
+            className="btn-primary"
           >
-            REQUEST SCORE
+            Request Score
           </button>
         </div>
       )}

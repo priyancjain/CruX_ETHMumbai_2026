@@ -11,4 +11,8 @@ scikit-learn>=1.5.2
 numpy>=2.0.0
 python-dotenv>=1.0.0
 python-multipart>=0.0.9
+<<<<<<< Updated upstream
 x402[httpx,evm]>=2.3.0
+=======
+x402[httpx,evm]>=2.3.0
+>>>>>>> Stashed changes

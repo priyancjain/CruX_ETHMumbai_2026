@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Providers from "@/components/providers";
+import ConnectWallet from "@/components/ConnectWallet";
 
 export const metadata: Metadata = {
-  title: "AgentScore — CIBIL for AI Agents",
+  title: "AgentScore — Universal Credit Rating for AI Agents",
   description:
-    "Universal credit scoring for autonomous AI agents. Cross-platform ML-powered scoring using onchain behavior.",
+    "The CIBIL for autonomous AI agents. Cross-platform on-chain credit scoring, underwriting, and DeFi lending.",
 };
 
 export default function RootLayout({
@@ -17,43 +18,88 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <Providers>
-          {/* Nav */}
-          <nav className="sticky top-0 z-50 border-b border-surface-3/60 bg-surface-0/80 backdrop-blur-xl">
+
+          {/* ── Ticker bar — CENTERED ── */}
+          <div className="bg-[#0a0a0a] border-b border-[#1a1a1a] overflow-hidden">
+            <div className="flex items-center justify-center gap-6 px-6 py-1.5 flex-wrap">
+              {[
+                { label: "VIRTUALS", val: "21,171", color: "text-green-400" },
+                { label: "OLAS", val: "9,000", color: "text-blue-400" },
+                { label: "FETCH.AI", val: "10,000", color: "text-yellow-400" },
+                { label: "AVG SCORE", val: "480/1000", color: "text-green-400" },
+                { label: "NETWORK", val: "BASE", color: "text-cyan-400" },
+              ].map((item, i) => (
+                <span key={item.label} className="flex items-center gap-1.5 text-[10px] font-mono whitespace-nowrap">
+                  <span className="text-gray-500">{item.label}</span>
+                  <span className={`${item.color} font-semibold`}>{item.val}</span>
+                  {i < 4 && <span className="text-gray-700 ml-2">·</span>}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Main navbar ── */}
+          <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-[#e0e0e0] shadow-sm">
             <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-              <a href="/" className="flex items-center gap-2.5 group">
-                <div className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center border border-accent/20 group-hover:bg-accent/25 transition-colors">
-                  <span className="text-accent font-display font-extrabold text-sm">A</span>
+
+              {/* Logo — new distinctive wordmark */}
+              <a href="/" className="flex items-center gap-2.5 group shrink-0">
+                {/* Icon mark: stacked bars like a credit score chart */}
+                <div className="flex flex-col gap-[3px] w-6 h-6 justify-center">
+                  <div className="h-[5px] w-full bg-[#1DB954] rounded-sm" />
+                  <div className="h-[5px] w-[70%] bg-[#1DB954]/60 rounded-sm" />
+                  <div className="h-[5px] w-[45%] bg-[#1DB954]/30 rounded-sm" />
                 </div>
-                <span className="font-display font-bold text-lg tracking-tight text-white">
-                  Agent<span className="text-accent">Score</span>
+                {/* Wordmark — Space Grotesk avoided per skill, using Sora */}
+                <span className="font-display font-black text-lg tracking-[-0.04em] text-gray-900">
+                  agent<span className="text-[#1DB954]">score</span>
                 </span>
               </a>
 
-              <div className="flex gap-1 items-center">
-                <a
-                  href="/"
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-surface-2/60 transition-all"
-                >
-                  Browse
-                </a>
-                <a
-                  href="/leaderboard"
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-surface-2/60 transition-all"
-                >
-                  Leaderboard
-                </a>
-                <a
-                  href="/platforms"
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-surface-2/60 transition-all"
-                >
-                  Platforms
-                </a>
+              {/* Center nav links */}
+              <div className="absolute left-1/2 -translate-x-1/2 flex gap-0.5 items-center">
+                {[
+                  { href: "/", label: "Browse" },
+                  { href: "/leaderboard", label: "Leaderboard" },
+                  { href: "/platforms", label: "Platforms" },
+                ].map((link) => (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    className="px-4 py-2 rounded-lg text-sm font-body font-medium text-gray-500
+                      hover:text-gray-900 hover:bg-gray-100 transition-all"
+                  >
+                    {link.label}
+                  </a>
+                ))}
               </div>
+
+              {/* Right — live dot + wallet */}
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="hidden md:flex items-center gap-1.5 text-[11px] font-mono text-gray-400 bg-gray-100 px-3 py-1.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#1DB954] animate-pulse" />
+                  BASE
+                </div>
+                <ConnectWallet />
+              </div>
+
             </div>
           </nav>
 
-          {/* Main */}
-          <main className="max-w-7xl mx-auto px-6 py-8">{children}</main>
+          {/* ── Main content ── */}
+          <main className="max-w-7xl mx-auto px-6 py-10">{children}</main>
+
+          {/* ── Footer ── */}
+          <footer className="border-t border-[#e0e0e0] mt-20 py-8">
+            <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
+              <span className="font-display font-black text-sm tracking-[-0.04em] text-gray-900">
+                agent<span className="text-[#1DB954]">score</span>
+              </span>
+              <p className="text-xs font-mono text-gray-400">
+                ETH Mumbai 2026 · Universal Credit Rating for AI Agents
+              </p>
+            </div>
+          </footer>
         </Providers>
       </body>
     </html>

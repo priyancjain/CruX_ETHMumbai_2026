@@ -87,3 +87,30 @@ export async function getPnL(walletAddress: string) {
 export async function getPositions(walletAddress: string) {
   return fetchAPI(`/enrichment/${walletAddress}/positions`);
 }
+
+export async function searchAgents(query: string, limit = 30) {
+  return fetchAPI(`/agents/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+}
+
+export async function checkLoanEligibility(walletAddress: string, requestedAmount: number, token = "USDC") {
+  return fetchAPI("/lender/eligibility", {
+    method: "POST",
+    body: JSON.stringify({
+      wallet_address: walletAddress,
+      requested_amount: requestedAmount,
+      token,
+    }),
+  });
+}
+
+export async function applyForLoan(walletAddress: string, amount: number, durationDays: number, token = "USDC") {
+  return fetchAPI("/lender/apply", {
+    method: "POST",
+    body: JSON.stringify({
+      wallet_address: walletAddress,
+      amount,
+      duration_days: durationDays,
+      token,
+    }),
+  });
+}
