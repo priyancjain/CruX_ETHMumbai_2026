@@ -84,8 +84,29 @@ export async function getPnL(walletAddress: string) {
   return fetchAPI(`/enrichment/${walletAddress}/pnl`);
 }
 
+
 export async function getPositions(walletAddress: string) {
   return fetchAPI(`/enrichment/${walletAddress}/positions`);
+}
+
+export async function getTrends(walletAddress: string) {
+  return fetchAPI(`/enrichment/${walletAddress}/trends`);
+}
+
+export async function getPnLHistory(walletAddress: string) {
+  return fetchAPI(`/enrichment/${walletAddress}/pnl/history`);
+}
+
+export async function getTradingStats(walletAddress: string) {
+  return fetchAPI(`/enrichment/${walletAddress}/stats`);
+}
+
+export async function getActivityHeatmap(walletAddress: string) {
+  return fetchAPI(`/enrichment/${walletAddress}/activity`);
+}
+
+export async function getAgentAnalysis(walletAddress: string) {
+  return fetchAPI(`/enrichment/${walletAddress}/analysis`);
 }
 
 export async function searchAgents(query: string, limit = 30) {

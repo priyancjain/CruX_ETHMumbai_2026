@@ -7,18 +7,19 @@ interface PositionsListProps {
   wallet: string;
 }
 
+
 const CHAIN_COLORS: Record<string, string> = {
-  ethereum: "bg-blue-500/15 text-blue-400",
-  base: "bg-blue-600/15 text-blue-300",
-  polygon: "bg-purple-500/15 text-purple-400",
-  arbitrum: "bg-sky-500/15 text-sky-400",
-  optimism: "bg-red-500/15 text-red-400",
-  bsc: "bg-yellow-500/15 text-yellow-400",
-  avalanche: "bg-red-600/15 text-red-300",
+  ethereum: "bg-blue-50 text-blue-600 border-blue-100",
+  base: "bg-cyan-50 text-cyan-600 border-cyan-100",
+  polygon: "bg-purple-50 text-purple-600 border-purple-100",
+  arbitrum: "bg-sky-50 text-sky-600 border-sky-100",
+  optimism: "bg-red-50 text-red-600 border-red-100",
+  bsc: "bg-yellow-50 text-yellow-600 border-yellow-100",
+  avalanche: "bg-red-50 text-red-600 border-red-100",
 };
 
-function getChainColor(chain: string): string {
-  return CHAIN_COLORS[chain?.toLowerCase()] || "bg-slate-500/15 text-slate-400";
+function getChainBadge(chain: string): string {
+  return CHAIN_COLORS[chain?.toLowerCase()] || "bg-gray-50 text-gray-500 border-gray-200";
 }
 
 function formatUSD(value: number): string {
@@ -52,25 +53,26 @@ export default function PositionsList({ wallet }: PositionsListProps) {
 
   if (loading) {
     return (
-      <div className="glass-card p-6">
-        <h3 className="text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-4">
-          PORTFOLIO POSITIONS
-        </h3>
-        <p className="text-slate-500 font-mono text-sm animate-pulse">
-          Loading positions...
-        </p>
+      <div className="glass-card p-6 min-h-[300px] flex flex-col justify-center items-center">
+        <div className="flex gap-1 mb-4">
+          {[0,1,2].map(i => (
+            <div key={i} className="w-1.5 h-6 bg-[#1DB954] rounded-full animate-pulse" style={{ animationDelay: `${i * 0.15}s` }} />
+          ))}
+        </div>
+        <p className="text-gray-400 font-mono text-sm">Auditing assets...</p>
       </div>
     );
   }
 
   if (!data || data.total_count === 0) {
     return (
-      <div className="glass-card p-6">
-        <h3 className="text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-4">
-          PORTFOLIO POSITIONS
-        </h3>
-        <p className="text-slate-500 font-mono text-sm">
-          No position data available. Score the agent to fetch HeyElsa data.
+      <div className="glass-card p-8 text-center space-y-3">
+        <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto text-gray-400">
+           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>
+        </div>
+        <h3 className="text-sm font-display font-bold text-gray-900">Portfolio Empty</h3>
+        <p className="text-gray-500 font-body text-xs max-w-xs mx-auto">
+          No current token or DeFi positions detected for this wallet.
         </p>
       </div>
     );
@@ -85,88 +87,107 @@ export default function PositionsList({ wallet }: PositionsListProps) {
   const positions = data[activeTab] || [];
 
   return (
-    <div className="glass-card p-6">
-      <h3 className="text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-4">
-        PORTFOLIO POSITIONS
-      </h3>
-
-      {/* Tabs */}
-      <div className="flex gap-1 mb-4 bg-surface-2/40 rounded-lg p-1 w-fit">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`text-[11px] font-mono px-3 py-1.5 rounded-md transition-all ${
-              activeTab === tab.id
-                ? "bg-accent/15 text-accent border border-accent/20"
-                : "text-slate-500 hover:text-slate-300"
-            }`}
-          >
-            {tab.label}
-            {tab.count > 0 && (
-              <span className="ml-1 text-[9px] opacity-60">({tab.count})</span>
-            )}
-          </button>
-        ))}
+    <div className="glass-card overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+        <h3 className="text-[10px] text-gray-500 font-mono tracking-widest uppercase font-bold">
+          PORTFOLIO POSITIONS
+        </h3>
+        <span className="text-[10px] text-gray-400 font-mono font-bold">
+          {data.total_count} TOTAL
+        </span>
       </div>
 
-      {/* Position List */}
-      <div className="space-y-2">
-        {positions.length === 0 ? (
-          <p className="text-slate-500 font-mono text-sm py-4">
-            No {activeTab} positions found.
-          </p>
-        ) : (
-          positions.map((pos: any, i: number) => (
-            <div
-              key={pos.id || i}
-              className="flex items-center gap-3 bg-surface-2/30 border border-surface-3/20 rounded-lg p-3 hover:bg-surface-2/50 transition-colors"
+      <div className="p-6">
+        {/* Tabs */}
+        <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1 w-fit border border-gray-200">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`text-[11px] font-display font-bold px-4 py-2 rounded-lg transition-all ${
+                activeTab === tab.id
+                  ? "bg-white text-gray-900 shadow-sm border border-gray-200"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
             >
-              {/* Token info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-mono font-medium text-slate-200">
-                    {pos.token_symbol || pos.protocol_name || "Unknown"}
-                  </span>
-                  <span
-                    className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${getChainColor(
-                      pos.chain
-                    )}`}
-                  >
-                    {pos.chain || "base"}
-                  </span>
-                </div>
-                {pos.protocol_name && activeTab !== "tokens" && (
-                  <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                    via {pos.protocol_name}
-                  </p>
-                )}
-              </div>
-
-              {/* Balance */}
-              <div className="text-right">
-                <p className="text-sm font-mono font-medium text-slate-200">
-                  {formatUSD(pos.balance_usd)}
-                </p>
-                {pos.balance_raw && pos.balance_raw !== "0" && (
-                  <p className="text-[10px] text-slate-500 font-mono">
-                    {Number(pos.balance_raw).toFixed(4)}
-                  </p>
-                )}
-              </div>
-
-              {/* APY for staking/defi */}
-              {pos.apy != null && pos.apy > 0 && (
-                <div className="text-right ml-2">
-                  <p className="text-[10px] text-emerald-400 font-mono">
-                    {(pos.apy * 100).toFixed(1)}% APY
-                  </p>
-                </div>
+              {tab.label}
+              {tab.count > 0 && (
+                <span className="ml-1.5 text-[10px] font-mono text-gray-400">
+                  {tab.count}
+                </span>
               )}
+            </button>
+          ))}
+        </div>
+
+        {/* Position List */}
+        <div className="space-y-3">
+          {positions.length === 0 ? (
+            <div className="py-12 text-center bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
+              <p className="text-gray-400 font-mono text-xs">
+                No active {activeTab} positions found.
+              </p>
             </div>
-          ))
-        )}
+          ) : (
+            positions.map((pos: any, i: number) => (
+              <div
+                key={pos.id || i}
+                className="flex items-center gap-4 bg-white border border-gray-100 rounded-xl p-4 hover:border-gray-300 hover:shadow-sm transition-all group"
+              >
+                {/* Token symbol mark */}
+                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-400 group-hover:bg-[#1DB954]/10 group-hover:text-[#1DB954] transition-colors">
+                   {(pos.token_symbol || pos.protocol_name || "?").slice(0, 2).toUpperCase()}
+                </div>
+
+                {/* Token info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-display font-bold text-gray-900">
+                      {pos.token_symbol || pos.protocol_name || "Unknown"}
+                    </span>
+                    <span
+                      className={`text-[9px] font-mono px-1.5 py-0.5 rounded border leading-none font-bold uppercase ${getChainBadge(
+                        pos.chain
+                      )}`}
+                    >
+                      {pos.chain || "base"}
+                    </span>
+                  </div>
+                  {pos.protocol_name && activeTab !== "tokens" && (
+                    <p className="text-[10px] text-gray-400 font-mono mt-0.5">
+                      via {pos.protocol_name}
+                    </p>
+                  )}
+                </div>
+
+                {/* Balance */}
+                <div className="text-right">
+                  <p className="text-sm font-mono font-bold text-gray-900">
+                    {formatUSD(pos.balance_usd)}
+                  </p>
+                  {pos.balance_raw && pos.balance_raw !== "0" && (
+                    <p className="text-[10px] text-gray-400 font-mono">
+                      {Number(pos.balance_raw).toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                    </p>
+                  )}
+                </div>
+
+                {/* APY for staking/defi */}
+                {pos.apy != null && pos.apy > 0 && (
+                  <div className="text-right ml-2 pl-4 border-l border-gray-100">
+                    <div className="px-2 py-1 bg-emerald-50 text-[#1DB954] rounded-lg">
+                       <p className="text-[10px] font-mono font-bold">
+                        +{(pos.apy * 100).toFixed(1)}% APY
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
       </div>
+
     </div>
   );
 }
