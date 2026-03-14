@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     HEYELSA_BASE_URL: str = "https://x402-api.heyelsa.ai"
     HEYELSA_WALLET_ADDRESS: str = ""
     HEYELSA_WALLET_PRIVATE_KEY: str = ""
+    X402_PAYER_PRIVATE_KEY: str = ""
 
     # Smart Contracts
     ERC8004_REGISTRY: str = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
@@ -33,6 +34,10 @@ class Settings(BaseSettings):
 
     # Olas / The Graph
     GRAPH_API_KEY: str = ""
+
+    # Score Anchor Contract (Base Sepolia)
+    SCORE_ANCHOR_ADDRESS: str = ""
+    SCORE_ANCHOR_PRIVATE_KEY: str = ""
 
     # Chains
     BASE_CHAIN_ID: int = 8453

@@ -51,11 +51,13 @@ def aggregate_features(
     if olas_data.get("found") and olas_data.get("gnosis_found"):
         cross_chain += 1
 
-    # ── TVL: prefer HeyElsa data, fallback to computed balance ─────────
+    # ── TVL: prefer HeyElsa data, fallback to on-chain estimate ────────
+    heyelsa_available = bool(heyelsa_data.get("heyelsa_available", False))
     tvl_usd = float(heyelsa_data.get("tvl_usd", 0) or 0)
+    tvl_source = "heyelsa" if (heyelsa_available and tvl_usd > 0) else "onchain_estimate"
     if tvl_usd == 0:
-        # Estimate TVL from balances (rough approximation)
-        eth_price_approx = 3000  # Rough ETH price for estimation
+        # Estimate TVL from on-chain balances (rough approximation)
+        eth_price_approx = 3000
         tvl_usd = (
             float(onchain_data.get("balance_eth", 0)) * eth_price_approx
             + float(onchain_data.get("balance_usdc", 0))
@@ -84,7 +86,9 @@ def aggregate_features(
         "defi_protocol_count": defi_protocol_count,
         "defi_protocols_used": onchain_data.get("defi_protocols_used", []),
         "nft_count": int(onchain_data.get("nft_count", 0)),
+        "tvl_source": tvl_source,
         # ERC-8004 signals
+        "has_erc8004_profile": bool(erc8004_data.get("found", False)),
         "erc8004_reputation": float(erc8004_data.get("reputation_score", 0) or 0),
         "erc8004_job_count": int(
             erc8004_data.get("feedback_count", 0)
@@ -108,6 +112,7 @@ def aggregate_features(
         "fetch_active_services": int(fetch_data.get("active_services", 0) or 0),
         "fetch_agent_address": fetch_data.get("agent_address"),
         # HeyElsa enrichment
+        "heyelsa_available": heyelsa_available,
         "heyelsa_risk_score": float(heyelsa_data.get("risk_score", 0) or 0),
         "heyelsa_defi_activity": float(heyelsa_data.get("defi_activity_score", 0) or 0),
         # Anomaly — defaults, set by run_anomaly node later

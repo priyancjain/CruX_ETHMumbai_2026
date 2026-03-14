@@ -28,6 +28,22 @@ async def request_score(body: ScoreRequest):
         score = existing.data[0]
         return ScoreResponse(**score, cached=True)
 
+    # Check for already pending/processing request for same wallet
+    pending = (
+        anon_client.table("score_requests")
+        .select("id, status")
+        .eq("wallet_address", wallet)
+        .in_("status", ["pending", "processing"])
+        .limit(1)
+        .execute()
+    )
+    if pending.data:
+        return ScoreQueuedResponse(
+            request_id=pending.data[0]["id"],
+            status="queued",
+            message="Scoring already in progress for this wallet.",
+        )
+
     # Queue scoring request
     result = service_client.table("score_requests").insert({
         "wallet_address": wallet,

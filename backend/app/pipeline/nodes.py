@@ -11,6 +11,7 @@ from app.services.anomaly import run_anomaly_detection
 from app.services.features import aggregate_features, upsert_features
 from app.services.heyelsa import analyze_wallet
 from app.services.supabase import service_client, anon_client
+from app.services.onchain_anchor import anchor_score_onchain
 
 logger = logging.getLogger("agentscore.pipeline")
 
@@ -151,7 +152,7 @@ async def fetch_ens_ensip25(state: AgentScoreState) -> dict:
     # Get agentId from ERC-8004 data (set in Node 3)
     agent_id = state.get("erc8004_data", {}).get("agent_id")
 
-    ens_data = check_ensip25(wallet, agent_id)
+    ens_data = await check_ensip25(wallet, agent_id)
 
     logger.info(
         f"  ENS name          = {ens_data.get('ens_name') or '—'}\n"
@@ -318,6 +319,7 @@ async def run_gpt_o3(state: AgentScoreState) -> dict:
         unique_counterparties_90d=features.get("unique_counterparties_90d", 0),
         contract_deploy_count=features.get("contract_deploy_count", 0),
         tvl_usd=features.get("tvl_usd", 0),
+        tvl_source=features.get("tvl_source", "onchain_estimate"),
         balance_eth=features.get("balance_eth", 0),
         balance_usdc=features.get("balance_usdc", 0),
         erc20_token_count=features.get("erc20_token_count", 0),
@@ -325,6 +327,7 @@ async def run_gpt_o3(state: AgentScoreState) -> dict:
         defi_protocols_used=", ".join(features.get("defi_protocols_used", [])) or "none",
         nft_count=features.get("nft_count", 0),
         cross_chain_count=features.get("cross_chain_count", 1),
+        has_erc8004_profile=features.get("has_erc8004_profile", False),
         erc8004_reputation=features.get("erc8004_reputation", 0),
         erc8004_job_count=features.get("erc8004_job_count", 0),
         ensip25_verified=features.get("ensip25_verified", False),
@@ -333,6 +336,7 @@ async def run_gpt_o3(state: AgentScoreState) -> dict:
         virtuals_mcap_usd=features.get("virtuals_mcap_usd", 0),
         virtuals_holder_count=features.get("virtuals_holder_count", 0),
         olas_job_count=features.get("olas_job_count", 0),
+        heyelsa_available=features.get("heyelsa_available", False),
         anomaly_score=features.get("anomaly_score", 0),
         is_anomaly=features.get("is_anomaly", False),
     )
@@ -440,21 +444,44 @@ async def save_score(state: AgentScoreState) -> dict:
 # ── NODE 9: Anchor Onchain (Optional) ───────────────────────────────────────
 async def anchor_onchain(state: AgentScoreState) -> dict:
     """
-    Anchor score hash on Base Sepolia.
-    Optional — skip if no deployer wallet or insufficient gas.
+    Anchor score hash on Base Sepolia via AgentScoreAnchor contract.
+    Skips gracefully if contract not deployed or no gas.
     """
     logger.info(f"\n{'='*60}")
-    logger.info(f"  NODE 9: ONCHAIN ANCHOR (Optional)")
+    logger.info(f"  NODE 9: ONCHAIN ANCHOR (Base Sepolia)")
     logger.info(f"{'='*60}")
 
-    # For hackathon: skip onchain anchoring unless configured
     score_id = state.get("score_id")
     if not score_id:
+        logger.info("  Skipped: no score_id to anchor")
         return {}
 
-    # TODO: Implement Base Sepolia anchoring when AgentScoreAnchor contract is deployed
-    # scoreHash = keccak256(abi.encodePacked(wallet, score, scored_at))
-    # Submit to AgentScoreAnchor contract
+    gpt = state.get("gpt_response", {})
+    wallet = state["wallet_address"]
+    score = gpt.get("score", 0)
+    tier = gpt.get("tier", "D")
+
+    tx_hash = await anchor_score_onchain(
+        wallet_address=wallet,
+        score=score,
+        tier=tier,
+    )
+
+    if tx_hash:
+        # Update the scores row with the on-chain tx hash
+        try:
+            service_client.table("scores").update({
+                "onchain_tx_hash": tx_hash,
+            }).eq("id", score_id).execute()
+            logger.info(f"  Updated score {score_id} with onchain_tx_hash={tx_hash}")
+        except Exception as e:
+            logger.warning(f"  Failed to update score with tx_hash: {e}")
+    else:
+        logger.info(
+            f"  Score {score_id} saved to Supabase only (no on-chain anchor).\n"
+            f"  To enable: deploy AgentScoreAnchor.sol, fund wallet with Base Sepolia ETH,\n"
+            f"  and set SCORE_ANCHOR_ADDRESS + SCORE_ANCHOR_PRIVATE_KEY in .env"
+        )
 
     return {}
 

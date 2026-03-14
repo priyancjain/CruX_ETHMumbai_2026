@@ -11,3 +11,4 @@ scikit-learn==1.5.0
 numpy==1.26.0
 python-dotenv==1.0.0
 python-multipart==0.0.9
+x402[httpx,evm]>=2.3.0

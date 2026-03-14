@@ -17,7 +17,8 @@ def _get_urls():
     }
 
 
-async def _gql_post(client: httpx.AsyncClient, url: str, query: str) -> dict:
+async def _gql_post(client: httpx.AsyncClient, url: str, query: str) -> dict | None:
+    """Execute GraphQL query. Returns data dict, or None on query error (vs empty results)."""
     resp = await client.post(
         url,
         json={"query": query},
@@ -27,8 +28,8 @@ async def _gql_post(client: httpx.AsyncClient, url: str, query: str) -> dict:
     resp.raise_for_status()
     result = resp.json()
     if "errors" in result:
-        logger.warning(f"GraphQL errors: {result['errors']}")
-        return {}
+        logger.warning(f"[Olas] GraphQL query error: {result['errors'][0].get('message', result['errors'])}")
+        return None  # Query error, not "no results"
     return result.get("data", {})
 
 
@@ -39,107 +40,86 @@ async def fetch_agent(wallet_address: str) -> dict:
         wallet_lower = wallet_address.lower()
 
         async with http_client() as client:
-            # Query both ETH mainnet and Gnosis Chain registries
-            query = """
+            # Step 1: Search by multisig address (service wallet)
+            multisig_query = """
             {
                 services(where: {multisig: "%s"}, first: 10) {
                     id
                     multisig
                     agentIds
                     creationTimestamp
-                }
-                agentRegistrations(first: 100) {
-                    agentId
-                    serviceId
-                    registrationTimestamp
+                    creator { id }
                 }
             }
             """ % wallet_lower
 
-            # Try ETH mainnet first
-            data = await _gql_post(client, urls["eth_registry"], query)
-            services = data.get("services", [])
+            services = []
+            gnosis_found = False
+
+            # Try ETH mainnet
+            data = await _gql_post(client, urls["eth_registry"], multisig_query)
+            if data:
+                services = data.get("services", [])
 
             # If not found on ETH, try Gnosis Chain
             if not services:
-                data = await _gql_post(client, urls["gnosis_registry"], query)
-                services = data.get("services", [])
+                data = await _gql_post(client, urls["gnosis_registry"], multisig_query)
+                if data:
+                    services = data.get("services", [])
+                    if services:
+                        gnosis_found = True
 
+            # Step 2: Search by creator address (deployer wallet)
             if not services:
-                # Also check if wallet is an agent owner
-                owner_query = """
+                creator_query = """
                 {
-                    services(where: {owner: "%s"}, first: 10) {
+                    services(where: {creator: "%s"}, first: 10) {
                         id
                         multisig
                         agentIds
                         creationTimestamp
+                        creator { id }
                     }
                 }
                 """ % wallet_lower
 
-                data = await _gql_post(client, urls["eth_registry"], owner_query)
-                services = data.get("services", [])
-
-                if not services:
-                    data = await _gql_post(client, urls["gnosis_registry"], owner_query)
+                data = await _gql_post(client, urls["eth_registry"], creator_query)
+                if data:
                     services = data.get("services", [])
 
+                if not services:
+                    data = await _gql_post(client, urls["gnosis_registry"], creator_query)
+                    if data:
+                        services = data.get("services", [])
+                        if services:
+                            gnosis_found = True
+
             if not services:
-                logger.info(f"[Olas] Agent NOT found for {wallet_address}")
+                logger.info(f"[Olas] Agent NOT found for {wallet_address} (searched multisig + creator on ETH + Gnosis)")
                 return {"found": False}
 
             service = services[0]
             agent_ids = service.get("agentIds", [])
-
-            # Get performance data if available
-            tx_count = 0
-            if agent_ids:
-                perf_query = """
-                {
-                    agentPerformances(where: {id_in: [%s]}) {
-                        id
-                        txCount
-                    }
-                }
-                """ % ",".join(f'"{aid}"' for aid in agent_ids)
-                perf_data = await _gql_post(client, urls["eth_registry"], perf_query)
-                perfs = perf_data.get("agentPerformances", [])
-                tx_count = sum(int(p.get("txCount", 0)) for p in perfs)
-
-            # Get dev incentives
-            total_reward = 0
-            incentive_query = """
-            {
-                devIncentives(where: {owner: "%s"}, first: 100) {
-                    reward
-                    topUp
-                }
-            }
-            """ % wallet_lower
-            inc_data = await _gql_post(client, urls["tokenomics"], incentive_query)
-            incentives = inc_data.get("devIncentives", [])
-            total_reward = sum(int(i.get("reward", 0)) for i in incentives)
 
             result = {
                 "found": True,
                 "agent_id": str(agent_ids[0]) if agent_ids else service["id"],
                 "service_id": service["id"],
                 "service_count": len(services),
-                "job_count": tx_count,
+                "job_count": 0,
                 "co_agent_ids": agent_ids,
                 "multisig": service.get("multisig", ""),
-                "total_reward": total_reward,
+                "total_reward": 0,
                 "created_at": service.get("creationTimestamp", ""),
+                "gnosis_found": gnosis_found,
             }
             logger.info(
                 f"[Olas] FOUND agent:\n"
                 f"       agent_id      = {result['agent_id']}\n"
                 f"       service_id    = {result['service_id']}\n"
                 f"       service_count = {result['service_count']}\n"
-                f"       job_count     = {result['job_count']}\n"
-                f"       total_reward  = {result['total_reward']}\n"
-                f"       multisig      = {result['multisig']}"
+                f"       multisig      = {result['multisig']}\n"
+                f"       chain         = {'gnosis' if gnosis_found else 'eth'}"
             )
             return result
 
@@ -167,9 +147,8 @@ async def list_agents(page: int = 1, page_size: int = 50) -> dict:
         """ % (first, skip)
 
         async with http_client() as client:
-            # Gnosis Chain has 9K+ services vs 48 on ETH
             data = await _gql_post(client, urls["gnosis_registry"], query)
-            services = data.get("services", [])
+            services = data.get("services", []) if data else []
 
             agents = []
             for svc in services:

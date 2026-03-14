@@ -23,6 +23,12 @@ MAX LOAN LIMITS:
 - Tier C: $5,000 USDC
 - Tier D: $1,000 USDC
 
+DATA AVAILABILITY NOTES:
+- TVL_SOURCE indicates where TVL data comes from: "heyelsa" (verified via x402 API) or "onchain_estimate" (rough estimate from ETH balance * $3000 + USDC balance). When TVL_SOURCE=onchain_estimate, treat TVL as approximate and weight it lower.
+- HAS_ERC8004_PROFILE=false means the agent has NO on-chain identity profile — this is different from having a profile with 0 reputation. "No profile" should be treated as a neutral signal (unknown), not as a negative one.
+- ENSIP25_VERIFIED=false means the agent has NOT set an ENS text record for agent registration. This is common and should not heavily penalize the score.
+- If HEYELSA_AVAILABLE=false, DeFi enrichment data is unavailable — do not infer protocol usage from absence of data.
+
 If is_anomaly=true, score MUST NOT exceed 599 (cap at Tier C).
 
 Return ONLY valid JSON. No markdown, no explanation outside the JSON."""
@@ -40,6 +46,7 @@ ONCHAIN SIGNALS:
   UNIQUE_COUNTERPARTIES_90D: {unique_counterparties_90d}
   CONTRACT_DEPLOY_COUNT: {contract_deploy_count}
   TVL_USD: {tvl_usd}
+  TVL_SOURCE: {tvl_source}
   BALANCE_ETH: {balance_eth}
   BALANCE_USDC: {balance_usdc}
   ERC20_TOKEN_COUNT: {erc20_token_count}
@@ -49,6 +56,7 @@ ONCHAIN SIGNALS:
   CROSS_CHAIN_COUNT: {cross_chain_count}
 
 IDENTITY SIGNALS:
+  HAS_ERC8004_PROFILE: {has_erc8004_profile}
   ERC8004_REPUTATION: {erc8004_reputation}/10
   ERC8004_JOBS: {erc8004_job_count}
   ENSIP25_VERIFIED: {ensip25_verified}
@@ -59,6 +67,9 @@ PLATFORM SIGNALS:
   VIRTUALS_MCAP_USD: {virtuals_mcap_usd}
   VIRTUALS_HOLDERS: {virtuals_holder_count}
   OLAS_JOBS: {olas_job_count}
+
+DATA ENRICHMENT:
+  HEYELSA_AVAILABLE: {heyelsa_available}
 
 ANOMALY DETECTION:
   ANOMALY_SCORE: {anomaly_score}
