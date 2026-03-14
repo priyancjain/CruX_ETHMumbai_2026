@@ -79,6 +79,15 @@ export default function TransactionTable({ wallet }: TransactionTableProps) {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  
+  // Filters
+  const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [assetFilter, setAssetFilter] = useState<string | null>(null);
+  const [chainFilter, setChainFilter] = useState<string | null>(null);
+  const [showTypeDropdown, setShowTypeDropdown] = useState(false);
+  const [showAssetDropdown, setShowAssetDropdown] = useState(false);
+  const [showChainDropdown, setShowChainDropdown] = useState(false);
+
   const pageSize = 10;
 
   useEffect(() => {
@@ -98,7 +107,73 @@ export default function TransactionTable({ wallet }: TransactionTableProps) {
     }
   }
 
+  const uniqueTypes = Array.from(new Set(transactions.map(tx => tx.tx_type || "unknown"))).sort();
+  const uniqueAssets = Array.from(new Set(transactions.map(tx => tx.token_symbol || "ETH"))).sort();
+  const uniqueChains = Array.from(new Set(transactions.map(tx => tx.chain || "base"))).sort();
+
+  const filteredTransactions = transactions.filter(tx => {
+    const matchesType = !typeFilter || tx.tx_type === typeFilter;
+    const matchesAsset = !assetFilter || (tx.token_symbol || "ETH") === assetFilter;
+    const matchesChain = !chainFilter || (tx.chain || "base") === chainFilter;
+    return matchesType && matchesAsset && matchesChain;
+  });
+
   const totalPages = Math.ceil(total / pageSize);
+
+  const FilterDropdown = ({ 
+    label, 
+    options, 
+    value, 
+    onChange, 
+    isOpen, 
+    setIsOpen 
+  }: { 
+    label: string, 
+    options: string[], 
+    value: string | null, 
+    onChange: (val: string | null) => void,
+    isOpen: boolean,
+    setIsOpen: (open: boolean) => void
+  }) => (
+    <div className="relative inline-block ml-1">
+      <button 
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+        className={`hover:text-gray-900 transition-colors ${value ? 'text-[#1DB954]' : 'text-gray-400'}`}
+      >
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+        </svg>
+      </button>
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)}></div>
+          <div className="absolute left-0 mt-2 w-32 bg-white border border-gray-100 rounded-lg shadow-xl z-20 py-1 overflow-hidden animate-in fade-in zoom-in duration-200">
+            <button 
+              onClick={() => { onChange(null); setIsOpen(false); }}
+              className="w-full text-left px-3 py-1.5 text-[10px] hover:bg-gray-50 font-mono text-gray-500 uppercase flex items-center justify-between"
+            >
+              All {label}s
+              {!value && <span className="w-1 h-1 rounded-full bg-[#1DB954]" />}
+            </button>
+            <div className="h-[1px] bg-gray-100 my-1" />
+            {options.map(opt => (
+              <button 
+                key={opt}
+                onClick={() => { onChange(opt); setIsOpen(false); }}
+                className="w-full text-left px-3 py-1.5 text-[10px] hover:bg-gray-50 font-mono text-gray-900 flex items-center justify-between"
+              >
+                {opt.toUpperCase()}
+                {value === opt && <span className="w-1 h-1 rounded-full bg-[#1DB954]" />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
 
   if (loading && transactions.length === 0) {
     return (
@@ -134,6 +209,14 @@ export default function TransactionTable({ wallet }: TransactionTableProps) {
           TRANSACTION HISTORY
         </h3>
         <div className="flex items-center gap-3">
+          {(typeFilter || assetFilter || chainFilter) && (
+            <button 
+              onClick={() => { setTypeFilter(null); setAssetFilter(null); setChainFilter(null); }}
+              className="text-[9px] text-[#1DB954] font-mono font-bold hover:underline bg-[#1DB954]/5 px-2 py-0.5 rounded border border-[#1DB954]/20"
+            >
+              CLEAR FILTERS
+            </button>
+          )}
           <span className="text-[10px] text-gray-400 font-mono px-2 py-0.5 bg-white border border-gray-200 rounded">
             {total} SIGNALS
           </span>
@@ -144,17 +227,53 @@ export default function TransactionTable({ wallet }: TransactionTableProps) {
         <table className="w-full">
           <thead>
             <tr className="text-[9px] text-gray-400 font-mono bg-gray-50/50 border-b border-gray-100 uppercase tracking-widest">
-              <th className="text-left py-4 px-6 font-black">Transfer Type</th>
-              <th className="text-left py-4 px-4 font-black">Asset</th>
+              <th className="text-left py-4 px-6 font-black">
+                <div className="flex items-center">
+                  Transfer Type
+                  <FilterDropdown 
+                    label="Type" 
+                    options={uniqueTypes} 
+                    value={typeFilter} 
+                    onChange={setTypeFilter} 
+                    isOpen={showTypeDropdown} 
+                    setIsOpen={setShowTypeDropdown} 
+                  />
+                </div>
+              </th>
+              <th className="text-left py-4 px-4 font-black">
+                <div className="flex items-center">
+                  Asset
+                  <FilterDropdown 
+                    label="Asset" 
+                    options={uniqueAssets} 
+                    value={assetFilter} 
+                    onChange={setAssetFilter} 
+                    isOpen={showAssetDropdown} 
+                    setIsOpen={setShowAssetDropdown} 
+                  />
+                </div>
+              </th>
               <th className="text-right py-4 px-4 font-black">Amount / Value</th>
               <th className="text-left py-4 px-4 font-black">Counterparty</th>
               <th className="text-left py-4 px-4 font-black">Protocol</th>
-              <th className="text-center py-4 px-4 font-black">Network</th>
+              <th className="text-center py-4 px-4 font-black">
+                <div className="flex items-center justify-center">
+                  Network
+                  <FilterDropdown 
+                    label="Network" 
+                    options={uniqueChains} 
+                    value={chainFilter} 
+                    onChange={setChainFilter} 
+                    isOpen={showChainDropdown} 
+                    setIsOpen={setShowChainDropdown} 
+                  />
+                </div>
+              </th>
               <th className="text-right py-4 px-6 font-black">Timestamp</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {transactions.map((tx, i) => {
+            {filteredTransactions.map((tx, i) => {
               const peer = tx.peer_address || (tx.is_incoming ? tx.from_address : tx.to_address);
               return (
                 <tr
@@ -218,6 +337,19 @@ export default function TransactionTable({ wallet }: TransactionTableProps) {
                 </tr>
               );
             })}
+            {filteredTransactions.length === 0 && (
+              <tr>
+                <td colSpan={7} className="py-20 text-center">
+                  <p className="text-gray-400 font-mono text-xs italic">No transactions match the selected filters.</p>
+                  <button 
+                    onClick={() => { setTypeFilter(null); setAssetFilter(null); setChainFilter(null); }}
+                    className="mt-4 text-[10px] text-[#1DB954] font-mono font-bold hover:underline"
+                  >
+                    RESET FILTERS
+                  </button>
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

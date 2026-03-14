@@ -11,9 +11,9 @@ import ScoreHistory from "@/components/ScoreHistory";
 import PlatformBadge from "@/components/PlatformBadge";
 import TransactionTable from "@/components/TransactionTable";
 import LenderPortal from "@/components/LenderPortal";
-import ActivityHeatmap from "@/components/ActivityHeatmap";
 import AIAnalysis from "@/components/AIAnalysis";
 import Tooltip from "@/components/Tooltip";
+import TransactionCharts from "@/components/TransactionCharts";
 
 type Tab = "overview" | "analysis" | "transactions";
 
@@ -296,10 +296,7 @@ export default function AgentPage() {
       {activeTab === "overview" && (
         <>
 
-          <div className="grid grid-cols-1 gap-6">
-             <ActivityHeatmap data={activityData} />
-          </div>
-
+          <TransactionCharts wallet={wallet} />
 
           <div className={`grid grid-cols-1 ${features && history.length > 0 ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-6`}>
             {features && <FeatureRadar features={features} />}
