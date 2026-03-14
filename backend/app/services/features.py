@@ -135,6 +135,7 @@ def aggregate_features(
         # Virtuals signals (from Virtuals API only)
         "virtuals_mcap_usd": round(float(virtuals_data.get("mcap_usd", 0) or 0), 2),
         "virtuals_holder_count": int(virtuals_data.get("holder_count", 0) or 0),
+        "virtuals_level": int(virtuals_data.get("virtuals_level", 0) or 0),
         # Olas signals
         "olas_job_count": int(olas_data.get("job_count", 0) or 0),
         "olas_service_id": olas_data.get("service_id") or olas_data.get("agent_id"),
@@ -155,6 +156,13 @@ def aggregate_features(
         "avg_trade_size_usd": round(_safe_float(heyelsa_data.get("avg_trade_size_usd", 0)), 2),
         "staking_balance_usd": round(_safe_float(heyelsa_data.get("staking_balance_usd", 0)), 2),
         "token_diversity": _token_diversity(heyelsa_data),
+        # Agent activity status (for anomaly model)
+        "is_active": bool(
+            virtuals_data.get("is_active", False)
+            or olas_data.get("found", False)
+            or fetch_data.get("found", False)
+            or int(onchain_data.get("tx_count_90d", 0)) > 0
+        ),
         # Anomaly — defaults, set by run_anomaly node later
         "anomaly_score": 0.0,
         "is_anomaly": False,

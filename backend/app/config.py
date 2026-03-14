@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     SCORE_ANCHOR_ADDRESS: str = ""
     SCORE_ANCHOR_PRIVATE_KEY: str = ""
 
+    # ENS Subnames (NameStone — gasless offchain subnames)
+    NAMESTONE_API_KEY: str = ""
+    ENS_DOMAIN: str = ""  # e.g. "agentscore.eth"
+
     # Chains
     BASE_CHAIN_ID: int = 8453
     BASE_SEPOLIA_CHAIN_ID: int = 84532

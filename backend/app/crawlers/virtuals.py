@@ -32,6 +32,24 @@ async def fetch_agent(wallet_address: str) -> dict:
                     agent_wallet = (agent.get("walletAddress") or "").lower()
 
                     if wallet_lower in (sentient_wallet, agent_wallet):
+                        # Derive virtuals_level from API fields (level, tier, or infer from mcap)
+                        raw_level = agent.get("level") or agent.get("tier") or agent.get("agentLevel") or 0
+                        if not raw_level:
+                            # Infer level from market cap tiers
+                            mcap = float(agent.get("mcapInVirtual", 0) or 0)
+                            if mcap >= 1_000_000:
+                                raw_level = 5
+                            elif mcap >= 100_000:
+                                raw_level = 4
+                            elif mcap >= 10_000:
+                                raw_level = 3
+                            elif mcap >= 1_000:
+                                raw_level = 2
+                            elif mcap > 0:
+                                raw_level = 1
+                            else:
+                                raw_level = 0
+
                         result = {
                             "found": True,
                             "agent_name": agent.get("name", ""),
@@ -44,6 +62,7 @@ async def fetch_agent(wallet_address: str) -> dict:
                             "chain": agent.get("chain", "BASE"),
                             "status": agent.get("status", ""),
                             "is_active": agent.get("status") == "AVAILABLE",
+                            "virtuals_level": int(raw_level),
                         }
                         logger.info(
                             f"[Virtuals] FOUND agent on page {page}:\n"

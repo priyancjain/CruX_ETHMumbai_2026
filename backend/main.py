@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import health, score, agents, leaderboard, platforms, discover, enrichment
+from app.api import health, score, agents, leaderboard, platforms, discover, enrichment, ens
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,3 +47,4 @@ app.include_router(leaderboard.router, tags=["Leaderboard"])
 app.include_router(platforms.router, prefix="/platforms", tags=["Platforms"])
 app.include_router(discover.router, tags=["Discovery"])
 app.include_router(enrichment.router, prefix="/enrichment", tags=["Enrichment"])
+app.include_router(ens.router, prefix="/ens", tags=["ENS"])

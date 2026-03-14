@@ -7,13 +7,20 @@ import logging
 from datetime import datetime, timezone
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(asctime)s │ %(name)-35s │ %(message)s",
     datefmt="%H:%M:%S",
 )
-# Reduce noise from httpx/httpcore
+# Reduce noise from non-worker loggers
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("hpack").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("supabase").setLevel(logging.INFO)
+logging.getLogger("postgrest").setLevel(logging.WARNING)
+logging.getLogger("gotrue").setLevel(logging.WARNING)
+logging.getLogger("realtime").setLevel(logging.WARNING)
+logging.getLogger("storage3").setLevel(logging.WARNING)
 logger = logging.getLogger("agentscore.worker")
 
 MAX_ATTEMPTS = 3
@@ -37,6 +44,11 @@ async def process_next_request():
     )
 
     if not result.data:
+        # Debug: check if there are ANY requests at all
+        all_requests = service_client.table("score_requests").select("id, status, wallet_address, created_at").order("created_at", desc=True).limit(5).execute()
+        if all_requests.data:
+            statuses = [f"{r['status']}({r['wallet_address'][:10]}...)" for r in all_requests.data]
+            logger.debug(f"No pending requests. Recent requests: {', '.join(statuses)}")
         return False
 
     request = result.data[0]

@@ -67,8 +67,8 @@ async def check_ensip25(wallet_address: str, agent_id=None) -> dict:
 
         text_value = await _get_text_record(ens_name, text_key, rpc_url)
 
-        # Step 3: Verify
-        ensip25_verified = text_value == "1"
+        # Step 3: Verify — per ENSIP-25 spec, ANY non-empty value confirms the association
+        ensip25_verified = bool(text_value)
 
         result = {
             "ens_name": ens_name,

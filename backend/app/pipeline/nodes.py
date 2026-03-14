@@ -13,6 +13,7 @@ from app.services.heyelsa import analyze_wallet
 from app.services.heyelsa_storage import store_transactions, store_pnl, store_positions
 from app.services.supabase import service_client, anon_client
 from app.services.onchain_anchor import anchor_score_onchain
+from app.services.ens_subnames import create_agent_subname
 
 logger = logging.getLogger("agentscore.pipeline")
 
@@ -281,34 +282,19 @@ async def node_aggregate_features(state: AgentScoreState) -> dict:
 
 # ── NODE 6: Run Anomaly Detection ───────────────────────────────────────────
 async def run_anomaly(state: AgentScoreState) -> dict:
-    """Run IsolationForest anomaly detection."""
+    """Run pre-trained IsolationForest anomaly detection on 13 features."""
     logger.info(f"\n{'='*60}")
-    logger.info(f"  NODE 6: ANOMALY DETECTION (IsolationForest)")
+    logger.info(f"  NODE 6: ANOMALY DETECTION (Pre-trained IsolationForest)")
     logger.info(f"{'='*60}")
 
     features = state.get("features", {})
 
-    # Get historical features for training
-    historical = []
-    try:
-        result = anon_client.table("agent_features").select("*").limit(500).execute()
-        historical = result.data or []
-    except Exception:
-        pass
-
-    anomaly_result = run_anomaly_detection(features, historical)
+    # Run pre-trained model (no historical data needed — model is already trained)
+    anomaly_result = run_anomaly_detection(features)
 
     # Update features with anomaly result
     features["anomaly_score"] = anomaly_result["anomaly_score"]
     features["is_anomaly"] = anomaly_result["is_anomaly"]
-
-    logger.info(
-        f"  Historical samples  = {len(historical)}\n"
-        f"  Anomaly score       = {anomaly_result['anomaly_score']}\n"
-        f"  Is anomaly          = {anomaly_result['is_anomaly']}"
-    )
-    if anomaly_result["is_anomaly"]:
-        logger.warning("  ⚠ ANOMALY DETECTED — score will be capped at Tier C (max 599)")
 
     return {
         "anomaly_result": anomaly_result,
@@ -478,14 +464,15 @@ async def save_score(state: AgentScoreState) -> dict:
     return {"score_id": score_id}
 
 
-# ── NODE 9: Anchor Onchain (Optional) ───────────────────────────────────────
+# ── NODE 9: Anchor Onchain + ENS Subname ──────────────────────────────────
 async def anchor_onchain(state: AgentScoreState) -> dict:
     """
-    Anchor score hash on Base Sepolia via AgentScoreAnchor contract.
-    Skips gracefully if contract not deployed or no gas.
+    1. Anchor score hash on Base Sepolia via AgentScoreAnchor contract.
+    2. Create gasless ENS subname via NameStone API (e.g. agentname.agentscore.eth).
+    Both are optional — skip gracefully if not configured.
     """
     logger.info(f"\n{'='*60}")
-    logger.info(f"  NODE 9: ONCHAIN ANCHOR (Base Sepolia)")
+    logger.info(f"  NODE 9: ONCHAIN ANCHOR + ENS SUBNAME")
     logger.info(f"{'='*60}")
 
     score_id = state.get("score_id")
@@ -497,7 +484,9 @@ async def anchor_onchain(state: AgentScoreState) -> dict:
     wallet = state["wallet_address"]
     score = gpt.get("score", 0)
     tier = gpt.get("tier", "D")
+    collateral = gpt.get("collateral_requirement", 200)
 
+    # ── Part A: Onchain score anchor (Base Sepolia) ──
     tx_hash = await anchor_score_onchain(
         wallet_address=wallet,
         score=score,
@@ -505,20 +494,53 @@ async def anchor_onchain(state: AgentScoreState) -> dict:
     )
 
     if tx_hash:
-        # Update the scores row with the on-chain tx hash
         try:
             service_client.table("scores").update({
                 "onchain_tx_hash": tx_hash,
             }).eq("id", score_id).execute()
-            logger.info(f"  Updated score {score_id} with onchain_tx_hash={tx_hash}")
+            logger.info(f"  Onchain anchor: tx={tx_hash}")
         except Exception as e:
             logger.warning(f"  Failed to update score with tx_hash: {e}")
     else:
-        logger.info(
-            f"  Score {score_id} saved to Supabase only (no on-chain anchor).\n"
-            f"  To enable: deploy AgentScoreAnchor.sol, fund wallet with Base Sepolia ETH,\n"
-            f"  and set SCORE_ANCHOR_ADDRESS + SCORE_ANCHOR_PRIVATE_KEY in .env"
-        )
+        logger.info("  Onchain anchor: skipped (not configured)")
+
+    # ── Part B: ENS subname via NameStone (gasless) ──
+    agent_name = (
+        state.get("virtuals_data", {}).get("agent_name")
+        or state.get("fetch_data", {}).get("agent_name")
+    )
+    agent_id = state.get("agent_id") or state.get("erc8004_data", {}).get("agent_id") or "0"
+
+    subname_result = await create_agent_subname(
+        wallet_address=wallet,
+        score=score,
+        tier=tier,
+        collateral_requirement=collateral,
+        agent_name=agent_name,
+        agent_id=str(agent_id),
+    )
+
+    if subname_result.get("success"):
+        subname = subname_result["subname"]
+        logger.info(f"  ENS subname: {subname} → {wallet}")
+        # Store subname in the scores row metadata
+        try:
+            # Update scores with subname
+            service_client.table("scores").update({
+                "raw_features": {
+                    **state.get("features", {}),
+                    "ensip25": state.get("ens_data", {}),
+                    "ens_subname": subname,
+                },
+            }).eq("id", score_id).execute()
+            # Update agents table with the subname as ens_name
+            service_client.table("agents").update({
+                "ens_name": subname,
+            }).eq("wallet_address", wallet).execute()
+        except Exception as e:
+            logger.warning(f"  Failed to store ENS subname in DB: {e}")
+    else:
+        logger.info(f"  ENS subname: skipped ({subname_result.get('error', 'not configured')})")
 
     return {}
 

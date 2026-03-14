@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, HTTPException, Header
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -5,6 +6,7 @@ from app.models.score import ScoreRequest, ScoreResponse, ScoreQueuedResponse
 from app.services.supabase import anon_client, service_client
 from app.config import get_settings
 
+logger = logging.getLogger("agentscore.api.score")
 router = APIRouter()
 
 
@@ -26,7 +28,10 @@ async def request_score(body: ScoreRequest):
 
     if existing.data:
         score = existing.data[0]
+        logger.info(f"[POST /score] CACHED score returned for {wallet} → score={score['score']}, tier={score['tier']} (expires {score.get('expires_at')})")
         return ScoreResponse(**score, cached=True)
+
+    logger.info(f"[POST /score] No cached score for {wallet}, will queue scoring request")
 
     # Expire stale pending/processing requests (older than 5 minutes)
     stale_cutoff = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
@@ -56,6 +61,7 @@ async def request_score(body: ScoreRequest):
         .execute()
     )
     if pending.data:
+        logger.info(f"[POST /score] Already pending/processing request {pending.data[0]['id']} for {wallet}")
         return ScoreQueuedResponse(
             request_id=pending.data[0]["id"],
             status="queued",
@@ -74,6 +80,7 @@ async def request_score(body: ScoreRequest):
     result = service_client.table("score_requests").insert(request_row).execute()
 
     request_id = result.data[0]["id"] if result.data else "unknown"
+    logger.info(f"[POST /score] NEW score_request created: id={request_id}, wallet={wallet}, priority={body.priority}")
     return ScoreQueuedResponse(
         request_id=request_id,
         status="queued",
