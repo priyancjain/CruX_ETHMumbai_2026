@@ -1,30 +1,97 @@
-# AgentScore — Deployment Guide (Railway)
+# AgentScore — Deployment Guide (Render Free Tier)
 
 ## Architecture
 
 ```
-Railway Project: AgentScore
-├── Service: api        (FastAPI)    → https://<api>.up.railway.app
-├── Service: worker     (worker.py)  → no public URL
-└── Service: frontend   (Next.js)    → https://<frontend>.up.railway.app
+Render Dashboard
+├── Web Service: agentscore-api       (FastAPI + embedded worker)  → https://agentscore-api.onrender.com
+└── Web Service: agentscore-frontend  (Next.js)                   → https://agentscore-frontend.onrender.com
+
+Supabase Cloud (already hosted — no changes needed)
 ```
 
-- **Supabase** stays on Supabase Cloud (already hosted)
-- **Railway** hosts all 3 application services
-- $5 free trial credits, no credit card needed
+> **Why 2 services instead of 3?**
+> Render free tier does not support Background Workers. So we embed the worker
+> loop directly into the FastAPI process (runs as an asyncio background task
+> during app lifespan). This keeps everything on the free tier.
 
 ---
 
 ## Prerequisites
 
-- [GitHub](https://github.com) account
-- [Railway](https://railway.com) account (sign up with GitHub)
-- [Supabase](https://supabase.com) project already set up with schema
-- API keys: OpenAI, Alchemy
+- [GitHub](https://github.com) account with code pushed
+- [Render](https://render.com) account (sign up with GitHub — free)
+- [Supabase](https://supabase.com) project already running with schema
+- API keys ready: OpenAI, Alchemy
 
 ---
 
-## Step 1: Push Code to GitHub
+## Step 1: Embed Worker into FastAPI
+
+Render free tier has no background worker support. We run the worker polling
+loop as a background task inside the FastAPI lifespan.
+
+### Modify `backend/main.py`
+
+Add the worker loop to the `lifespan` function:
+
+```python
+import asyncio
+from worker import process_next_request, recover_stale_requests
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("AgentScore API ready")
+
+    # Start embedded worker as background task
+    async def worker_loop():
+        logger.info("Embedded worker started. Polling for score requests...")
+        try:
+            await recover_stale_requests()
+        except Exception as e:
+            logger.warning(f"Could not recover stale requests: {e}")
+        while True:
+            try:
+                processed = await process_next_request()
+                if not processed:
+                    await asyncio.sleep(2)
+            except Exception as e:
+                logger.error(f"Worker error: {e}")
+                await asyncio.sleep(2)
+
+    worker_task = asyncio.create_task(worker_loop())
+    yield
+    worker_task.cancel()
+    logger.info("AgentScore API shutting down")
+```
+
+This means one service handles both the API and worker polling.
+
+---
+
+## Step 2: Create Dockerfile
+
+Create `backend/Dockerfile`:
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 10000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "10000"]
+```
+
+> **Note:** Render free tier uses port `10000` by default. Set `PORT=10000` in env vars.
+
+---
+
+## Step 3: Push to GitHub
 
 ```bash
 cd agentscore
@@ -32,15 +99,15 @@ git init
 git add .
 git commit -m "Initial commit"
 
-# Create repo on GitHub (using GitHub CLI)
+# Using GitHub CLI:
 gh repo create agentscore --public --source=. --push
 
-# Or manually: create repo on github.com, then:
+# Or manually:
 git remote add origin https://github.com/<your-username>/agentscore.git
 git push -u origin main
 ```
 
-Make sure `.gitignore` excludes:
+Ensure `.gitignore` has:
 ```
 venv/
 __pycache__/
@@ -49,210 +116,175 @@ __pycache__/
 node_modules/
 .next/
 *.pyc
+.DS_Store
 ```
 
 ---
 
-## Step 2: Create Railway Project
+## Step 4: Deploy Backend on Render
 
-1. Go to [railway.com](https://railway.com) → **Login with GitHub**
-2. Click **New Project → Empty Project**
-3. Name it `agentscore`
+1. Go to [render.com](https://render.com) → **Login with GitHub**
+2. Click **New → Web Service**
+3. Connect your GitHub repo
+4. Configure:
 
----
+| Setting | Value |
+|---------|-------|
+| **Name** | `agentscore-api` |
+| **Root Directory** | `agentscore/backend` |
+| **Runtime** | Docker |
+| **Instance Type** | Free |
 
-## Step 3: Deploy FastAPI API
+5. **Add Environment Variables** (Environment tab):
 
-1. In Railway dashboard → **New → GitHub Repo** → select your `agentscore` repo
-2. Configure:
-   - **Service Name**: `api`
-   - **Root Directory**: `agentscore/backend`
-   - **Builder**: Dockerfile (auto-detected from `backend/Dockerfile`)
-3. **Add Environment Variables** (click on the service → Variables tab):
+```
+SUPABASE_URL=https://vvxhbyfqxmyfigczwqsk.supabase.co
+SUPABASE_ANON_KEY=<your-anon-key>
+SUPABASE_SERVICE_KEY=<your-service-role-key>
+ALCHEMY_API_KEY=<your-alchemy-key>
+ALCHEMY_BASE_KEY=<your-alchemy-key>
+ALCHEMY_BASE_RPC=https://base-mainnet.g.alchemy.com/v2/<your-key>
+ALCHEMY_ETH_RPC=https://eth-mainnet.g.alchemy.com/v2/<your-key>
+OPENAI_API_KEY=<your-openai-key>
+OPENAI_MODEL=o3
+PORT=10000
+```
 
-   ```env
-   # Supabase
-   SUPABASE_URL=https://vvxhbyfqxmyfigczwqsk.supabase.co
-   SUPABASE_ANON_KEY=<your-anon-key>
-   SUPABASE_SERVICE_KEY=<your-service-role-key>
+6. Click **Deploy**
+7. Wait for build (~3-5 min)
+8. Copy the service URL: `https://agentscore-api.onrender.com`
 
-   # Alchemy
-   ALCHEMY_API_KEY=<your-alchemy-key>
-   ALCHEMY_BASE_KEY=<your-alchemy-key>
-   ALCHEMY_BASE_RPC=https://base-mainnet.g.alchemy.com/v2/<your-key>
-   ALCHEMY_ETH_RPC=https://eth-mainnet.g.alchemy.com/v2/<your-key>
-
-   # OpenAI
-   OPENAI_API_KEY=<your-openai-key>
-   OPENAI_MODEL=o3
-
-   # Port
-   PORT=8000
-   ```
-
-4. Go to **Settings → Networking → Generate Domain**
-5. Copy the URL (e.g. `https://api-production-xxxx.up.railway.app`)
-6. **Deploy** — wait for build to complete
-
-### Verify API
+### Verify
 ```bash
-curl https://api-production-xxxx.up.railway.app/health
+curl https://agentscore-api.onrender.com/health
 # Expected: {"status": "ok", ...}
 ```
 
----
-
-## Step 4: Deploy Worker
-
-1. In Railway dashboard → **New → GitHub Repo** → same repo
-2. Configure:
-   - **Service Name**: `worker`
-   - **Root Directory**: `agentscore/backend`
-   - **Dockerfile Path**: `Dockerfile.worker`
-3. **Add same environment variables** as the API service (copy from API service)
-4. **DO NOT generate a domain** — worker has no public URL
-5. **Deploy**
-
-### Verify Worker
-Check **Logs** tab in Railway dashboard → should see:
+Check Render logs — should see both:
 ```
-AgentScore Worker started. Polling for score requests...
+AgentScore API ready
+Embedded worker started. Polling for score requests...
 ```
 
 ---
 
-## Step 5: Deploy Next.js Frontend
+## Step 5: Deploy Frontend on Render
 
-1. In Railway dashboard → **New → GitHub Repo** → same repo
-2. Configure:
-   - **Service Name**: `frontend`
-   - **Root Directory**: `agentscore/frontend`
-   - **Builder**: Nixpacks (auto-detects Next.js)
-3. **Add Environment Variables**:
+1. **New → Web Service**
+2. Connect same GitHub repo
+3. Configure:
 
-   ```env
-   NEXT_PUBLIC_API_URL=https://api-production-xxxx.up.railway.app
-   NEXT_PUBLIC_SUPABASE_URL=https://vvxhbyfqxmyfigczwqsk.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
-   NODE_VERSION=20
-   ```
+| Setting | Value |
+|---------|-------|
+| **Name** | `agentscore-frontend` |
+| **Root Directory** | `agentscore/frontend` |
+| **Runtime** | Node |
+| **Build Command** | `npm install && npm run build` |
+| **Start Command** | `npm start` |
+| **Instance Type** | Free |
 
-   > Replace `api-production-xxxx` with the actual API URL from Step 3.
+4. **Add Environment Variables**:
 
-4. **Settings → Networking → Generate Domain**
-5. **Deploy**
+```
+NEXT_PUBLIC_API_URL=https://agentscore-api.onrender.com
+NEXT_PUBLIC_SUPABASE_URL=https://vvxhbyfqxmyfigczwqsk.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
+NODE_VERSION=20
+PORT=10000
+```
 
-### Verify Frontend
-Open `https://frontend-production-xxxx.up.railway.app` in browser → landing page should load.
+> Replace `agentscore-api.onrender.com` with the actual API URL from Step 4.
+
+5. Click **Deploy**
+6. Wait for build (~3-5 min)
+
+### Verify
+Open `https://agentscore-frontend.onrender.com` → landing page should load.
 
 ---
 
 ## Step 6: End-to-End Test
 
-1. Open frontend URL
-2. Enter a wallet address (e.g. a Virtuals agent wallet)
-3. Click score → should see "Scoring in progress..."
-4. Check **worker logs** in Railway → pipeline should run through all 10 nodes
-5. Score should appear on the agent page automatically (via Supabase Realtime)
-6. Check **Transactions tab** → should show Alchemy-sourced transactions
-
----
-
-## Dockerfiles
-
-### `backend/Dockerfile` (API)
-```dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-
-EXPOSE 8000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
-
-### `backend/Dockerfile.worker` (Worker)
-```dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-
-CMD ["python", "worker.py"]
-```
+1. Open frontend URL in browser
+2. Enter a wallet address (e.g. `0x598b4A32958e76A16B2471e67C0B2eF28e1Ba47d`)
+3. Click search/score → should see "Scoring in progress..."
+4. Check **Render logs** for `agentscore-api` → pipeline should run all 10 nodes
+5. Score appears on agent page automatically (Supabase Realtime)
+6. Click **Transactions tab** → should show Alchemy-sourced transactions
+7. **Transaction Analysis Card** should appear below the score card
 
 ---
 
 ## Environment Variables Reference
 
-### Backend (API + Worker share these)
+### Backend (`agentscore-api`)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SUPABASE_URL` | Yes | Supabase project URL |
-| `SUPABASE_ANON_KEY` | Yes | Supabase anonymous/public key |
-| `SUPABASE_SERVICE_KEY` | Yes | Supabase service role key (writes) |
+| `SUPABASE_ANON_KEY` | Yes | Supabase public key |
+| `SUPABASE_SERVICE_KEY` | Yes | Supabase service role key |
 | `ALCHEMY_API_KEY` | Yes | Alchemy API key |
 | `ALCHEMY_BASE_KEY` | Yes | Alchemy Base chain key |
-| `ALCHEMY_BASE_RPC` | Yes | Alchemy Base RPC URL |
-| `ALCHEMY_ETH_RPC` | Yes | Alchemy ETH mainnet RPC URL |
+| `ALCHEMY_BASE_RPC` | Yes | Alchemy Base RPC endpoint |
+| `ALCHEMY_ETH_RPC` | Yes | Alchemy ETH mainnet RPC endpoint |
 | `OPENAI_API_KEY` | Yes | OpenAI API key |
-| `OPENAI_MODEL` | No | Model name (default: `o3`) |
-| `PORT` | Yes | Server port (set to `8000`) |
-| `HEYELSA_ENABLED` | No | Enable HeyElsa x402 (default: `true`) |
-| `NAMESTONE_API_KEY` | No | NameStone API key for ENS subnames |
-| `ENS_DOMAIN` | No | Parent ENS domain (e.g. `agentscore.eth`) |
+| `OPENAI_MODEL` | No | Default: `o3` |
+| `PORT` | Yes | `10000` (Render default) |
+| `HEYELSA_ENABLED` | No | Default: `true` |
+| `NAMESTONE_API_KEY` | No | For ENS subnames |
 | `SCORE_ANCHOR_ADDRESS` | No | Base Sepolia anchor contract |
-| `SCORE_ANCHOR_PRIVATE_KEY` | No | Private key for onchain anchoring |
+| `SCORE_ANCHOR_PRIVATE_KEY` | No | For onchain anchoring |
 
-### Frontend
+### Frontend (`agentscore-frontend`)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `NEXT_PUBLIC_API_URL` | Yes | Backend API URL from Railway |
+| `NEXT_PUBLIC_API_URL` | Yes | Backend URL from Render |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous key |
-| `NODE_VERSION` | No | Node.js version (default: `20`) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase public key |
+| `NODE_VERSION` | No | Default: `20` |
+| `PORT` | Yes | `10000` (Render default) |
 
 ---
 
 ## Troubleshooting
 
-### API returns 500
-- Check Railway logs for the `api` service
-- Verify all env vars are set (especially `SUPABASE_SERVICE_KEY`)
+### API returns 500 / Application Error
+- Check Render logs for the `agentscore-api` service
+- Verify `SUPABASE_SERVICE_KEY` is correct (get from Supabase → Settings → API → service_role)
+- Ensure `OPENAI_API_KEY` is valid and has credits
 
 ### Worker not processing requests
-- Check Railway logs for `worker` service
-- Ensure `score_requests` table has pending rows
-- Verify env vars match the API service
+- Check Render logs — look for "Embedded worker started"
+- If missing, the `main.py` lifespan changes weren't applied
+- Check `score_requests` table in Supabase for pending rows
 
 ### Frontend shows "API request failed"
-- Verify `NEXT_PUBLIC_API_URL` points to the correct Railway API URL
-- Check browser DevTools → Network tab for failed requests
-- Ensure API service is running and healthy
+- Verify `NEXT_PUBLIC_API_URL` matches the Render API URL exactly
+- Check browser DevTools → Network tab for CORS errors
+- Ensure API service is awake (free tier sleeps after 15 min inactivity)
 
-### Cold starts (slow first request)
-- Railway trial plan may sleep services after inactivity
-- First request takes ~10-30s to wake up
-- Upgrade to paid plan ($5/mo per service) for always-on
+### Slow first load (30-60 seconds)
+- **This is normal on Render free tier** — services sleep after 15 min of no traffic
+- First request wakes the service ("cold start")
+- Subsequent requests are fast
+- For always-on: upgrade to Starter ($7/mo per service)
+
+### Build fails on Render
+- Check that `requirements.txt` has no Windows-only packages
+- Remove `pycryptodome` if it causes C compilation errors (replace with `pycryptodome==3.20.0`)
+- For frontend: ensure `package-lock.json` is committed
 
 ---
 
-## Cost Estimate
+## Cost
 
-| Plan | Cost | Notes |
-|------|------|-------|
-| Trial | $5 free | ~1 week of light usage for 3 services |
-| Hobby | $5/mo | Per service, always-on, no sleep |
-| Pro | $20/mo | Team features, more resources |
+| Tier | Cost | Services | Notes |
+|------|------|----------|-------|
+| **Free** | $0 | 2 web services | Sleeps after 15 min, 750 hrs/mo |
+| Starter | $7/mo each | Always-on | No cold starts |
 
-For a hackathon demo, the **free $5 trial** is sufficient.
+**Free tier is perfect for hackathon demos.** The 750 free hours/month is shared
+across all services (2 services × 24h × 31 days = 1488 hrs needed, so services
+will sleep when inactive to stay within limits — which is fine for a demo).

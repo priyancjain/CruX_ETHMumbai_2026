@@ -6,21 +6,18 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s │ %(name)-35s │ %(message)s",
-    datefmt="%H:%M:%S",
-)
-# Reduce noise from non-worker loggers
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
-logging.getLogger("hpack").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
-logging.getLogger("supabase").setLevel(logging.INFO)
-logging.getLogger("postgrest").setLevel(logging.WARNING)
-logging.getLogger("gotrue").setLevel(logging.WARNING)
-logging.getLogger("realtime").setLevel(logging.WARNING)
-logging.getLogger("storage3").setLevel(logging.WARNING)
+# Only configure logging when running standalone (not when imported by main.py)
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s │ %(name)-35s │ %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    # Reduce noise from non-worker loggers
+    for noisy in ["httpx", "httpcore", "hpack", "urllib3", "postgrest", "gotrue", "realtime", "storage3"]:
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+    logging.getLogger("supabase").setLevel(logging.INFO)
+
 logger = logging.getLogger("agentscore.worker")
 
 MAX_ATTEMPTS = 3
