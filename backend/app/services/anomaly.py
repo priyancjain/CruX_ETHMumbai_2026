@@ -13,6 +13,9 @@ ANOMALY_FEATURES = [
     "erc8004_reputation",
     "erc8004_job_count",
     "balance_eth",
+    "heyelsa_risk_score",
+    "total_pnl_usd",
+    "win_rate",
 ]
 
 

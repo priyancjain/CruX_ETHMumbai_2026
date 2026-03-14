@@ -4,6 +4,16 @@ from app.services.supabase import service_client
 logger = logging.getLogger("agentscore.services.features")
 
 
+def _token_diversity(heyelsa_data: dict) -> int:
+    count = heyelsa_data.get("token_count_heyelsa", 0)
+    if count and isinstance(count, (int, float)) and count > 0:
+        return int(count)
+    traded = heyelsa_data.get("tokens_traded")
+    if isinstance(traded, list):
+        return len(traded)
+    return 0
+
+
 def aggregate_features(
     wallet_address: str,
     virtuals_data: dict,
@@ -111,10 +121,20 @@ def aggregate_features(
         # Fetch.ai signals
         "fetch_active_services": int(fetch_data.get("active_services", 0) or 0),
         "fetch_agent_address": fetch_data.get("agent_address"),
-        # HeyElsa enrichment
+        # HeyElsa enrichment — basic
         "heyelsa_available": heyelsa_available,
         "heyelsa_risk_score": float(heyelsa_data.get("risk_score", 0) or 0),
         "heyelsa_defi_activity": float(heyelsa_data.get("defi_activity_score", 0) or 0),
+        "heyelsa_wallet_label": heyelsa_data.get("wallet_label", ""),
+        "heyelsa_diversification": float(heyelsa_data.get("diversification_score", 0) or 0),
+        # HeyElsa enrichment — PnL & trading
+        "total_pnl_usd": round(float(heyelsa_data.get("total_pnl_usd", 0) or 0), 2),
+        "realized_pnl_usd": round(float(heyelsa_data.get("realized_pnl_usd", 0) or 0), 2),
+        "win_rate": round(float(heyelsa_data.get("win_rate", 0) or 0), 4),
+        "total_trades": int(heyelsa_data.get("total_trades", 0) or 0),
+        "avg_trade_size_usd": round(float(heyelsa_data.get("avg_trade_size_usd", 0) or 0), 2),
+        "staking_balance_usd": round(float(heyelsa_data.get("staking_balance_usd", 0) or 0), 2),
+        "token_diversity": _token_diversity(heyelsa_data),
         # Anomaly — defaults, set by run_anomaly node later
         "anomaly_score": 0.0,
         "is_anomaly": False,
@@ -169,6 +189,16 @@ def upsert_features(agent_id: str, features: dict) -> None:
             "olas_job_count": features.get("olas_job_count", 0),
             "olas_service_id": features.get("olas_service_id"),
             "fetch_agent_address": features.get("fetch_agent_address"),
+            # HeyElsa enrichment columns
+            "heyelsa_risk_score": features.get("heyelsa_risk_score", 0),
+            "heyelsa_defi_activity": features.get("heyelsa_defi_activity", 0),
+            "heyelsa_wallet_label": features.get("heyelsa_wallet_label", ""),
+            "total_pnl_usd": features.get("total_pnl_usd", 0),
+            "win_rate": features.get("win_rate", 0),
+            "total_trades": features.get("total_trades", 0),
+            "avg_trade_size_usd": features.get("avg_trade_size_usd", 0),
+            "staking_balance_usd": features.get("staking_balance_usd", 0),
+            "token_diversity": features.get("token_diversity", 0),
         }
         service_client.table("agent_features").upsert(
             row, on_conflict="agent_id"

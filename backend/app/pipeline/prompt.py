@@ -29,6 +29,15 @@ DATA AVAILABILITY NOTES:
 - ENSIP25_VERIFIED=false means the agent has NOT set an ENS text record for agent registration. This is common and should not heavily penalize the score.
 - If HEYELSA_AVAILABLE=false, DeFi enrichment data is unavailable — do not infer protocol usage from absence of data.
 
+FINANCIAL PERFORMANCE SCORING GUIDANCE (when HEYELSA_AVAILABLE=true):
+- HEYELSA_RISK_SCORE > 70: Add risk flag. High concentration risk = potential single point of failure.
+- WIN_RATE > 50% with TOTAL_TRADES > 10: Positive signal — consistent profitability indicates financial competence.
+- TOTAL_PNL_USD > 0: Profitable agent — weight positively. Large profits with high win rate = elite financial behavior.
+- TOTAL_PNL_USD < 0: Loss-making agent — weight negatively but don't over-penalize if other signals are strong.
+- STAKING_BALANCE_USD > 0: Long-term commitment signal — agent locks value, indicating stability.
+- TOKEN_DIVERSITY > 5: Diversified trading = better risk management.
+- AVG_TRADE_SIZE_USD > $1000 with positive PnL: Institutional-grade agent behavior.
+
 If is_anomaly=true, score MUST NOT exceed 599 (cap at Tier C).
 
 Return ONLY valid JSON. No markdown, no explanation outside the JSON."""
@@ -70,6 +79,16 @@ PLATFORM SIGNALS:
 
 DATA ENRICHMENT:
   HEYELSA_AVAILABLE: {heyelsa_available}
+
+FINANCIAL PERFORMANCE (HeyElsa x402):
+  HEYELSA_RISK_SCORE: {heyelsa_risk_score}
+  HEYELSA_DIVERSIFICATION: {heyelsa_diversification}
+  TOTAL_PNL_USD: {total_pnl_usd}
+  WIN_RATE: {win_rate}
+  TOTAL_TRADES: {total_trades}
+  AVG_TRADE_SIZE_USD: {avg_trade_size_usd}
+  STAKING_BALANCE_USD: {staking_balance_usd}
+  TOKEN_DIVERSITY: {token_diversity}
 
 ANOMALY DETECTION:
   ANOMALY_SCORE: {anomaly_score}

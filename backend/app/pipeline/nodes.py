@@ -10,6 +10,7 @@ from app.services.ensip25 import check_ensip25
 from app.services.anomaly import run_anomaly_detection
 from app.services.features import aggregate_features, upsert_features
 from app.services.heyelsa import analyze_wallet
+from app.services.heyelsa_storage import store_transactions, store_pnl, store_positions
 from app.services.supabase import service_client, anon_client
 from app.services.onchain_anchor import anchor_score_onchain
 
@@ -209,8 +210,16 @@ async def node_aggregate_features(state: AgentScoreState) -> dict:
         ("21", "virtuals_holder_count",     features.get("virtuals_holder_count", 0),     "Virtuals API"),
         ("22", "olas_job_count",            features.get("olas_job_count", 0),             "Olas Subgraph"),
         ("23", "fetch_active_services",     features.get("fetch_active_services", 0),     "Fetch.ai Agentverse"),
-        ("24", "anomaly_score",             features.get("anomaly_score", 0),              "IsolationForest"),
-        ("25", "is_anomaly",                features.get("is_anomaly", False),             "IsolationForest"),
+        ("24", "heyelsa_risk_score",         features.get("heyelsa_risk_score", 0),         "HeyElsa x402"),
+        ("25", "heyelsa_diversification",   features.get("heyelsa_diversification", 0),   "HeyElsa x402"),
+        ("26", "total_pnl_usd",            features.get("total_pnl_usd", 0),              "HeyElsa PnL"),
+        ("27", "win_rate",                  features.get("win_rate", 0),                   "HeyElsa PnL"),
+        ("28", "total_trades",             features.get("total_trades", 0),                "HeyElsa PnL"),
+        ("29", "avg_trade_size_usd",       features.get("avg_trade_size_usd", 0),         "HeyElsa PnL"),
+        ("30", "staking_balance_usd",      features.get("staking_balance_usd", 0),        "HeyElsa Stakes"),
+        ("31", "token_diversity",          features.get("token_diversity", 0),             "HeyElsa Portfolio"),
+        ("32", "anomaly_score",             features.get("anomaly_score", 0),              "IsolationForest"),
+        ("33", "is_anomaly",                features.get("is_anomaly", False),             "IsolationForest"),
     ]
     for num, name, value, source in feature_rows:
         logger.info(f"  {num:<4} {name:<24} {str(value):<16} {source}")
@@ -249,6 +258,15 @@ async def node_aggregate_features(state: AgentScoreState) -> dict:
         if result.data:
             agent_id = result.data[0]["id"]
             upsert_features(agent_id, features)
+            # Store HeyElsa enrichment data (best-effort, never blocks scoring)
+            heyelsa = state.get("heyelsa_data", {})
+            if heyelsa.get("heyelsa_available"):
+                try:
+                    store_transactions(agent_id, wallet, heyelsa)
+                    store_pnl(agent_id, wallet, heyelsa)
+                    store_positions(agent_id, wallet, heyelsa)
+                except Exception as e:
+                    logger.warning(f"HeyElsa storage failed (non-blocking): {e}")
     except Exception as e:
         logger.warning(f"Failed to upsert agent/features: {e}")
 
@@ -337,6 +355,14 @@ async def run_gpt_o3(state: AgentScoreState) -> dict:
         virtuals_holder_count=features.get("virtuals_holder_count", 0),
         olas_job_count=features.get("olas_job_count", 0),
         heyelsa_available=features.get("heyelsa_available", False),
+        heyelsa_risk_score=features.get("heyelsa_risk_score", 0),
+        heyelsa_diversification=features.get("heyelsa_diversification", 0),
+        total_pnl_usd=features.get("total_pnl_usd", 0),
+        win_rate=features.get("win_rate", 0),
+        total_trades=features.get("total_trades", 0),
+        avg_trade_size_usd=features.get("avg_trade_size_usd", 0),
+        staking_balance_usd=features.get("staking_balance_usd", 0),
+        token_diversity=features.get("token_diversity", 0),
         anomaly_score=features.get("anomaly_score", 0),
         is_anomaly=features.get("is_anomaly", False),
     )

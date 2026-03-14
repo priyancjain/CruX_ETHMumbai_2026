@@ -8,6 +8,11 @@ import ScoreCard from "@/components/ScoreCard";
 import FeatureRadar from "@/components/FeatureRadar";
 import ScoreHistory from "@/components/ScoreHistory";
 import PlatformBadge from "@/components/PlatformBadge";
+import PnLCard from "@/components/PnLCard";
+import TransactionTable from "@/components/TransactionTable";
+import PositionsList from "@/components/PositionsList";
+
+type Tab = "overview" | "transactions" | "positions";
 
 export default function AgentPage() {
   const params = useParams();
@@ -16,9 +21,11 @@ export default function AgentPage() {
   const [agent, setAgent] = useState<any>(null);
   const [score, setScore] = useState<any>(null);
   const [features, setFeatures] = useState<any>(null);
+  const [pnl, setPnl] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [scoring, setScoring] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>("overview");
 
   useEffect(() => {
     loadData();
@@ -57,6 +64,7 @@ export default function AgentPage() {
         setAgent(agentData.agent);
         setScore(agentData.latest_score);
         setFeatures(agentData.features);
+        setPnl(agentData.pnl);
         if (agentData.pending_request) {
           setScoring(true);
         }
@@ -104,6 +112,12 @@ export default function AgentPage() {
       </div>
     );
   }
+
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "transactions", label: "Transactions" },
+    { id: "positions", label: "Positions" },
+  ];
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -155,40 +169,72 @@ export default function AgentPage() {
         />
       )}
 
-      {/* Feature Radar + Score History */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {features && <FeatureRadar features={features} />}
-        <ScoreHistory scores={history} />
+      {/* Tab Bar */}
+      <div className="flex gap-1 bg-surface-2/40 rounded-lg p-1 w-fit">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`text-xs font-mono px-4 py-2 rounded-md transition-all ${
+              activeTab === tab.id
+                ? "bg-accent/15 text-accent border border-accent/20"
+                : "text-slate-500 hover:text-slate-300"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* Raw Features */}
-      {features && (
-        <div className="glass-card p-6">
-          <h3 className="text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-4">
-            22-SIGNAL FEATURE VECTOR
-          </h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {Object.entries(features)
-              .filter(
-                ([k]) =>
-                  !["platforms_list", "id", "agent_id", "last_updated_at"].includes(k)
-              )
-              .map(([key, value]) => (
-                <div
-                  key={key}
-                  className="bg-surface-2/40 border border-surface-3/30 rounded-lg p-2.5"
-                >
-                  <p className="text-[10px] text-slate-500 font-mono truncate">
-                    {key}
-                  </p>
-                  <p className="text-sm font-mono font-medium text-slate-200 mt-0.5">
-                    {String(value)}
-                  </p>
-                </div>
-              ))}
+      {/* Tab Content */}
+      {activeTab === "overview" && (
+        <>
+          {/* PnL Card */}
+          {pnl && <PnLCard pnl={pnl} />}
+
+          {/* Feature Radar + Score History */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {features && <FeatureRadar features={features} />}
+            <ScoreHistory scores={history} />
           </div>
-        </div>
+
+          {/* Raw Features */}
+          {features && (
+            <div className="glass-card p-6">
+              <h3 className="text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-4">
+                FEATURE VECTOR ({Object.keys(features).filter(
+                  (k) =>
+                    !["platforms_list", "id", "agent_id", "last_updated_at"].includes(k)
+                ).length} SIGNALS)
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {Object.entries(features)
+                  .filter(
+                    ([k]) =>
+                      !["platforms_list", "id", "agent_id", "last_updated_at"].includes(k)
+                  )
+                  .map(([key, value]) => (
+                    <div
+                      key={key}
+                      className="bg-surface-2/40 border border-surface-3/30 rounded-lg p-2.5"
+                    >
+                      <p className="text-[10px] text-slate-500 font-mono truncate">
+                        {key}
+                      </p>
+                      <p className="text-sm font-mono font-medium text-slate-200 mt-0.5">
+                        {String(value)}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
+
+      {activeTab === "transactions" && <TransactionTable wallet={wallet} />}
+
+      {activeTab === "positions" && <PositionsList wallet={wallet} />}
 
       {/* No score CTA */}
       {!score && !scoring && (

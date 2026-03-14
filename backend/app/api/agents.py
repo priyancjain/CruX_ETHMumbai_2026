@@ -86,6 +86,16 @@ async def get_agent(wallet_address: str):
         .execute()
     )
 
+    # Get PnL data
+    pnl_result = (
+        anon_client.table("agent_pnl")
+        .select("*")
+        .eq("wallet_address", wallet_address)
+        .order("snapshot_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+
     # Get pending request if any
     request_result = (
         anon_client.table("score_requests")
@@ -101,5 +111,6 @@ async def get_agent(wallet_address: str):
         "agent": agent,
         "latest_score": score_result.data[0] if score_result.data else None,
         "features": features_result.data[0] if features_result.data else None,
+        "pnl": pnl_result.data[0] if pnl_result.data else None,
         "pending_request": request_result.data[0] if request_result.data else None,
     }

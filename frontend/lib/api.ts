@@ -66,3 +66,21 @@ export async function discoverAgents(
 export async function discoverAllAgents(page = 1, pageSize = 20) {
   return fetchAPI(`/discover?page=${page}&page_size=${pageSize}`);
 }
+
+export async function getTransactions(
+  walletAddress: string,
+  page = 1,
+  pageSize = 20
+) {
+  return fetchAPI(
+    `/enrichment/${walletAddress}/transactions?page=${page}&page_size=${pageSize}`
+  );
+}
+
+export async function getPnL(walletAddress: string) {
+  return fetchAPI(`/enrichment/${walletAddress}/pnl`);
+}
+
+export async function getPositions(walletAddress: string) {
+  return fetchAPI(`/enrichment/${walletAddress}/positions`);
+}

@@ -28,12 +28,15 @@ export default function FeatureRadar({ features }: FeatureRadarProps) {
     { label: "Platforms", value: normalize(features.platform_count || 0, 5) },
     { label: "Chains", value: normalize(features.cross_chain_count || 0, 5) },
     { label: "Balance", value: normalize((features.balance_eth || 0) + (features.balance_usdc || 0) / 3000, 10) },
+    { label: "PnL", value: normalize(Math.max(features.total_pnl_usd || 0, 0), 50000) },
+    { label: "Win %", value: normalize((features.win_rate || 0) * 100, 100) },
+    { label: "Risk", value: normalize(100 - (features.heyelsa_risk_score || 0), 100) },
   ];
 
   return (
     <div className="glass-card p-6">
       <h3 className="text-[10px] text-slate-500 font-mono tracking-wider uppercase mb-4">
-        FEATURE ANALYSIS
+        FEATURE ANALYSIS (12 AXES)
       </h3>
       <ResponsiveContainer width="100%" height={300}>
         <RadarChart data={data}>
