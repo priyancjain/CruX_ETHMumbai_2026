@@ -1,0 +1,147 @@
+@import url("https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-surface-0: #04060e;
+    --color-surface-1: #0a0e1a;
+    --color-surface-2: #111827;
+    --color-surface-3: #1a2236;
+    --color-accent: #06d6a0;
+    --color-text: #e2e8f0;
+    --color-text-dim: #64748b;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-family: "IBM Plex Sans", sans-serif;
+    background: var(--color-surface-0);
+    color: var(--color-text);
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(6, 214, 160, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(6, 214, 160, 0.025) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Syne", sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  code, .font-mono, [class*="font-mono"] {
+    font-family: "IBM Plex Mono", monospace;
+  }
+}
+
+@layer components {
+  .glass-card {
+    background: linear-gradient(135deg, rgba(10, 14, 26, 0.85), rgba(17, 24, 39, 0.65));
+    border: 1px solid rgba(6, 214, 160, 0.08);
+    border-radius: 16px;
+    backdrop-filter: blur(12px);
+    transition: all 0.3s ease;
+  }
+
+  .glass-card:hover {
+    border-color: rgba(6, 214, 160, 0.2);
+    box-shadow: 0 0 30px rgba(6, 214, 160, 0.06);
+  }
+
+  .tier-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-family: "Syne", sans-serif;
+    font-weight: 800;
+    font-size: 0.875rem;
+    letter-spacing: 0.05em;
+    border: 1px solid currentColor;
+  }
+
+  .tier-S { color: #06d6a0; background: rgba(6, 214, 160, 0.12); box-shadow: 0 0 16px rgba(6, 214, 160, 0.2); }
+  .tier-A { color: #34d399; background: rgba(52, 211, 153, 0.12); box-shadow: 0 0 16px rgba(52, 211, 153, 0.15); }
+  .tier-B { color: #60a5fa; background: rgba(96, 165, 250, 0.12); box-shadow: 0 0 16px rgba(96, 165, 250, 0.15); }
+  .tier-C { color: #fbbf24; background: rgba(251, 191, 36, 0.12); box-shadow: 0 0 16px rgba(251, 191, 36, 0.15); }
+  .tier-D { color: #f87171; background: rgba(248, 113, 113, 0.12); box-shadow: 0 0 16px rgba(248, 113, 113, 0.15); }
+
+  .score-glow {
+    text-shadow: 0 0 40px rgba(6, 214, 160, 0.4), 0 0 80px rgba(6, 214, 160, 0.15);
+  }
+
+  .shimmer {
+    background: linear-gradient(90deg, var(--color-surface-2) 25%, var(--color-surface-3) 50%, var(--color-surface-2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  .stagger-children > * {
+    opacity: 0;
+    animation: slideUp 0.5s ease-out forwards;
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+  .stagger-children > *:nth-child(2) { animation-delay: 0.1s; }
+  .stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+  .stagger-children > *:nth-child(4) { animation-delay: 0.2s; }
+  .stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
+  .stagger-children > *:nth-child(6) { animation-delay: 0.3s; }
+  .stagger-children > *:nth-child(7) { animation-delay: 0.35s; }
+  .stagger-children > *:nth-child(8) { animation-delay: 0.4s; }
+  .stagger-children > *:nth-child(n+9) { animation-delay: 0.45s; }
+}
+
+@layer utilities {
+  .text-gradient {
+    background: linear-gradient(135deg, #06d6a0, #60a5fa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-surface-0); }
+::-webkit-scrollbar-thumb { background: var(--color-surface-3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(6, 214, 160, 0.3); }
