@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { getAgent, getScoreHistory, requestScore } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
@@ -27,6 +27,59 @@ export default function AgentPage() {
   const [scoring, setScoring] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
 
+  // Track the score ID at the moment we start polling, so we detect NEW scores
+  const scoreIdBeforePolling = useRef<string | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Clean up polling interval
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  }, []);
+
+  // Start polling — uses ref-based comparison instead of stale closure
+  const startPolling = useCallback(() => {
+    stopPolling(); // clear any existing interval first
+    let attempts = 0;
+
+    pollIntervalRef.current = setInterval(async () => {
+      attempts++;
+      if (attempts > 60) {
+        stopPolling();
+        setScoring(false);
+        return;
+      }
+      try {
+        const data = await getAgent(wallet).catch(() => null);
+        if (
+          data?.latest_score &&
+          data.latest_score.id !== scoreIdBeforePolling.current
+        ) {
+          // New score arrived — update everything and stop polling
+          stopPolling();
+          setAgent(data.agent);
+          setScore(data.latest_score);
+          setFeatures(data.features);
+          setPnl(data.pnl);
+          setScoring(false);
+          const hist = await getScoreHistory(wallet).catch(() => ({
+            scores: [],
+          }));
+          setHistory(hist.scores || []);
+        }
+      } catch {
+        // keep polling
+      }
+    }, 3000);
+  }, [wallet, stopPolling]);
+
+  // Cleanup on unmount or wallet change
+  useEffect(() => {
+    return () => stopPolling();
+  }, [wallet, stopPolling]);
+
   useEffect(() => {
     loadData();
 
@@ -41,6 +94,7 @@ export default function AgentPage() {
           filter: `wallet_address=eq.${wallet}`,
         },
         (payload) => {
+          stopPolling();
           setScore(payload.new);
           setScoring(false);
           loadData();
@@ -50,6 +104,7 @@ export default function AgentPage() {
 
     return () => {
       supabase.removeChannel(channel);
+      stopPolling();
     };
   }, [wallet]);
 
@@ -65,24 +120,29 @@ export default function AgentPage() {
         setScore(agentData.latest_score);
         setFeatures(agentData.features);
         setPnl(agentData.pnl);
-        if (agentData.pending_request) {
-          setScoring(true);
-        }
       }
       setHistory(historyData.scores || []);
 
-      if (!agentData?.latest_score && !agentData?.pending_request) {
+      // If no score exists, ALWAYS call requestScore (backend handles dedup + stale cleanup)
+      if (!agentData?.latest_score) {
         try {
+          scoreIdBeforePolling.current = null;
+          console.log("[AgentPage] No score found — requesting scoring for", wallet);
           await requestScore(wallet);
           setScoring(true);
-        } catch {
-          // Scoring request failed
+          startPolling();
+        } catch (err) {
+          console.error("[AgentPage] requestScore failed:", err);
         }
       }
-    } catch {
+      // If score exists — just display, no polling needed
+    } catch (err) {
+      console.error("[AgentPage] loadData failed:", err);
       try {
+        scoreIdBeforePolling.current = null;
         await requestScore(wallet);
         setScoring(true);
+        startPolling();
       } catch {
         // Could not score
       }
@@ -94,7 +154,10 @@ export default function AgentPage() {
   async function handleRescore() {
     setScoring(true);
     try {
+      // Remember current score ID so we can detect when a NEW one arrives
+      scoreIdBeforePolling.current = score?.id || null;
       await requestScore(wallet);
+      startPolling();
     } catch {
       setScoring(false);
     }
@@ -166,6 +229,8 @@ export default function AgentPage() {
           rationale={score.rationale}
           key_factors={score.key_factors || []}
           risk_flags={score.risk_flags || []}
+          ensip25_verified={score.ensip25_verified || false}
+          ens_name={score.ens_name}
         />
       )}
 

@@ -101,9 +101,11 @@ async def fetch_onchain(state: AgentScoreState) -> dict:
         )
 
     if isinstance(heyelsa_result, Exception):
-        logger.error(f"[Node 2] HeyElsa data fetch failed: {heyelsa_result}")
+        import traceback as tb
+        logger.error(f"[Node 2] HeyElsa data fetch CRASHED: {type(heyelsa_result).__name__}: {heyelsa_result}")
+        logger.error(f"[Node 2] HeyElsa traceback:\n{''.join(tb.format_exception(type(heyelsa_result), heyelsa_result, heyelsa_result.__traceback__))}")
     elif heyelsa:
-        logger.info(f"[Node 2] HeyElsa data: tvl={heyelsa.get('tvl_usd')}, risk={heyelsa.get('risk_score')}")
+        logger.info(f"[Node 2] HeyElsa data: heyelsa_available={heyelsa.get('heyelsa_available')}, tvl={heyelsa.get('tvl_usd')}, risk={heyelsa.get('risk_score')}, tx_count={len(heyelsa.get('transaction_history', []))}")
     else:
         logger.warning(f"[Node 2] HeyElsa returned empty data (x402 payment may have failed)")
 
@@ -150,8 +152,9 @@ async def fetch_ens_ensip25(state: AgentScoreState) -> dict:
     logger.info(f"  NODE 4: ENS + ENSIP-25 VERIFICATION — {wallet}")
     logger.info(f"{'='*60}")
 
-    # Get agentId from ERC-8004 data (set in Node 3)
-    agent_id = state.get("erc8004_data", {}).get("agent_id")
+    # Prefer agent_id from request, fallback to ERC-8004 data
+    agent_id = state.get("agent_id") or state.get("erc8004_data", {}).get("agent_id") or "0"
+    logger.info(f"  Using agent_id = {agent_id} for ENSIP-25 text key")
 
     ens_data = await check_ensip25(wallet, agent_id)
 
@@ -159,6 +162,9 @@ async def fetch_ens_ensip25(state: AgentScoreState) -> dict:
         f"  ENS name          = {ens_data.get('ens_name') or '—'}\n"
         f"  ENSIP-25 verified = {ens_data.get('ensip25_verified', False)}"
     )
+    if ens_data.get("text_key"):
+        logger.info(f"  Text key          = {ens_data.get('text_key')}")
+        logger.info(f"  Text value        = {ens_data.get('text_value') or '(empty)'}")
 
     return {"ens_data": ens_data}
 
@@ -443,6 +449,11 @@ async def save_score(state: AgentScoreState) -> dict:
     except Exception:
         pass
 
+    # Embed ENSIP-25 data into raw_features for persistence
+    ens_data = state.get("ens_data", {})
+    features_with_ensip25 = dict(features)
+    features_with_ensip25["ensip25"] = ens_data
+
     score_row = {
         "agent_id": agent_id,
         "wallet_address": wallet,
@@ -453,7 +464,7 @@ async def save_score(state: AgentScoreState) -> dict:
         "rationale": gpt["rationale"],
         "key_factors": gpt.get("key_factors", []),
         "risk_flags": gpt.get("risk_flags", []),
-        "raw_features": features,
+        "raw_features": features_with_ensip25,
         "model_used": "o3",
         "anomaly_score": features.get("anomaly_score", 0),
         "is_anomaly": features.get("is_anomaly", False),

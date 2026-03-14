@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from app.services.supabase import service_client
 
 logger = logging.getLogger("agentscore.services.heyelsa_storage")
@@ -13,6 +14,22 @@ def store_transactions(agent_id: str, wallet_address: str, heyelsa_data: dict) -
     try:
         rows = []
         for tx in transactions:
+            # Handle string items (plain tx hashes) — convert to minimal dict
+            if isinstance(tx, str):
+                if tx.startswith("0x"):
+                    rows.append({
+                        "agent_id": agent_id,
+                        "wallet_address": wallet_address,
+                        "tx_hash": tx,
+                        "chain": "base",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "raw_data": {"hash": tx},
+                    })
+                continue
+
+            if not isinstance(tx, dict):
+                continue
+
             row = {
                 "agent_id": agent_id,
                 "wallet_address": wallet_address,
@@ -42,8 +59,12 @@ def store_transactions(agent_id: str, wallet_address: str, heyelsa_data: dict) -
                 rows, on_conflict="wallet_address,tx_hash", ignore_duplicates=True
             ).execute()
             logger.info(f"[HeyElsa Storage] Stored {len(rows)} transactions for {wallet_address}")
+        else:
+            logger.info(f"[HeyElsa Storage] No valid transaction rows to store for {wallet_address}")
     except Exception as e:
         logger.warning(f"[HeyElsa Storage] Failed to store transactions: {e}")
+        import traceback
+        logger.warning(f"[HeyElsa Storage] Traceback:\n{traceback.format_exc()}")
 
 
 def store_pnl(agent_id: str, wallet_address: str, heyelsa_data: dict) -> None:

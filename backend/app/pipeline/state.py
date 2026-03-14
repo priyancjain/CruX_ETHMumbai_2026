@@ -5,6 +5,7 @@ class AgentScoreState(TypedDict, total=False):
     # Input
     wallet_address: str
     request_id: str
+    agent_id: str  # ENSIP-25: agent's registry ID (default "0")
 
     # Raw platform data
     virtuals_data: dict

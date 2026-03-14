@@ -50,17 +50,19 @@ def build_graph() -> StateGraph:
 scoring_pipeline = build_graph().compile()
 
 
-async def run_scoring_pipeline(wallet_address: str, request_id: str) -> dict:
+async def run_scoring_pipeline(wallet_address: str, request_id: str, agent_id: str = "0") -> dict:
     """Run the full scoring pipeline for a wallet address."""
     logger.info(f"\n{'#'*60}")
     logger.info(f"  AGENTSCORE PIPELINE START")
-    logger.info(f"  Wallet:  {wallet_address}")
-    logger.info(f"  Request: {request_id}")
+    logger.info(f"  Wallet:   {wallet_address}")
+    logger.info(f"  Request:  {request_id}")
+    logger.info(f"  Agent ID: {agent_id}")
     logger.info(f"{'#'*60}")
 
     initial_state: AgentScoreState = {
         "wallet_address": wallet_address,
         "request_id": request_id,
+        "agent_id": agent_id,
         "virtuals_data": {},
         "elizaos_data": {},
         "olas_data": {},

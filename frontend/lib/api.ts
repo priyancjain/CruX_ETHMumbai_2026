@@ -15,10 +15,13 @@ async function fetchAPI(path: string, options?: RequestInit) {
   return res.json();
 }
 
-export async function requestScore(walletAddress: string) {
+export async function requestScore(walletAddress: string, agentId?: string) {
   return fetchAPI("/score", {
     method: "POST",
-    body: JSON.stringify({ wallet_address: walletAddress }),
+    body: JSON.stringify({
+      wallet_address: walletAddress,
+      ...(agentId ? { agent_id: agentId } : {}),
+    }),
   });
 }
 

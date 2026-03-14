@@ -42,6 +42,7 @@ async def process_next_request():
     request = result.data[0]
     request_id = request["id"]
     wallet = request["wallet_address"]
+    agent_id = request.get("agent_id") or "0"
     attempts = request.get("attempts", 0)
 
     logger.info(f"Processing request {request_id} for wallet {wallet} (attempt {attempts + 1})")
@@ -55,7 +56,7 @@ async def process_next_request():
 
     try:
         # Run scoring pipeline
-        result = await run_scoring_pipeline(wallet, request_id)
+        result = await run_scoring_pipeline(wallet, request_id, agent_id=agent_id)
         score_id = result.get("score_id")
 
         if score_id:
@@ -93,8 +94,36 @@ async def process_next_request():
     return True
 
 
+async def recover_stale_requests():
+    """Reset any requests stuck in 'processing' (e.g. from a previous crash) back to 'pending'."""
+    from app.services.supabase import service_client
+    from datetime import timedelta
+
+    stale_cutoff = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+    stale = (
+        service_client.table("score_requests")
+        .select("id")
+        .eq("status", "processing")
+        .lt("started_at", stale_cutoff)
+        .execute()
+    )
+    if stale.data:
+        for s in stale.data:
+            service_client.table("score_requests").update({
+                "status": "pending",
+                "error_message": "Recovered from stale processing state",
+            }).eq("id", s["id"]).execute()
+        logger.info(f"Recovered {len(stale.data)} stale processing requests back to pending")
+
+
 async def main():
     logger.info("AgentScore Worker started. Polling for score requests...")
+
+    # On startup, recover any requests stuck in 'processing' from a previous crash
+    try:
+        await recover_stale_requests()
+    except Exception as e:
+        logger.warning(f"Could not recover stale requests: {e}")
 
     while True:
         try:

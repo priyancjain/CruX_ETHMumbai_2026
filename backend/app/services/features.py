@@ -4,6 +4,24 @@ from app.services.supabase import service_client
 logger = logging.getLogger("agentscore.services.features")
 
 
+def _safe_float(value, default: float = 0.0) -> float:
+    """Convert value to float, handling strings like 'high', 'low', 'medium'."""
+    if value is None:
+        return default
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        mapping = {"high": 80.0, "medium": 50.0, "low": 20.0, "none": 0.0, "very high": 95.0, "very low": 10.0}
+        lower = value.strip().lower()
+        if lower in mapping:
+            return mapping[lower]
+        try:
+            return float(lower)
+        except ValueError:
+            return default
+    return default
+
+
 def _token_diversity(heyelsa_data: dict) -> int:
     count = heyelsa_data.get("token_count_heyelsa", 0)
     if count and isinstance(count, (int, float)) and count > 0:
@@ -76,8 +94,10 @@ def aggregate_features(
     # ── DeFi protocol count: augment with HeyElsa protocols ───────────
     defi_protocol_count = int(onchain_data.get("defi_protocol_count", 0))
     heyelsa_protocols = heyelsa_data.get("protocol_list", [])
-    if heyelsa_protocols:
+    if isinstance(heyelsa_protocols, list) and heyelsa_protocols:
         defi_protocol_count = max(defi_protocol_count, len(heyelsa_protocols))
+    elif isinstance(heyelsa_protocols, (int, float)) and heyelsa_protocols > 0:
+        defi_protocol_count = max(defi_protocol_count, int(heyelsa_protocols))
 
     # ── Build feature vector ──────────────────────────────────────────
     features = {
@@ -123,17 +143,17 @@ def aggregate_features(
         "fetch_agent_address": fetch_data.get("agent_address"),
         # HeyElsa enrichment — basic
         "heyelsa_available": heyelsa_available,
-        "heyelsa_risk_score": float(heyelsa_data.get("risk_score", 0) or 0),
-        "heyelsa_defi_activity": float(heyelsa_data.get("defi_activity_score", 0) or 0),
-        "heyelsa_wallet_label": heyelsa_data.get("wallet_label", ""),
-        "heyelsa_diversification": float(heyelsa_data.get("diversification_score", 0) or 0),
+        "heyelsa_risk_score": _safe_float(heyelsa_data.get("risk_score", 0)),
+        "heyelsa_defi_activity": _safe_float(heyelsa_data.get("defi_activity_score", 0)),
+        "heyelsa_wallet_label": str(heyelsa_data.get("wallet_label", "") or ""),
+        "heyelsa_diversification": _safe_float(heyelsa_data.get("diversification_score", 0)),
         # HeyElsa enrichment — PnL & trading
-        "total_pnl_usd": round(float(heyelsa_data.get("total_pnl_usd", 0) or 0), 2),
-        "realized_pnl_usd": round(float(heyelsa_data.get("realized_pnl_usd", 0) or 0), 2),
-        "win_rate": round(float(heyelsa_data.get("win_rate", 0) or 0), 4),
-        "total_trades": int(heyelsa_data.get("total_trades", 0) or 0),
-        "avg_trade_size_usd": round(float(heyelsa_data.get("avg_trade_size_usd", 0) or 0), 2),
-        "staking_balance_usd": round(float(heyelsa_data.get("staking_balance_usd", 0) or 0), 2),
+        "total_pnl_usd": round(_safe_float(heyelsa_data.get("total_pnl_usd", 0)), 2),
+        "realized_pnl_usd": round(_safe_float(heyelsa_data.get("realized_pnl_usd", 0)), 2),
+        "win_rate": round(_safe_float(heyelsa_data.get("win_rate", 0)), 4),
+        "total_trades": int(_safe_float(heyelsa_data.get("total_trades", 0))),
+        "avg_trade_size_usd": round(_safe_float(heyelsa_data.get("avg_trade_size_usd", 0)), 2),
+        "staking_balance_usd": round(_safe_float(heyelsa_data.get("staking_balance_usd", 0)), 2),
         "token_diversity": _token_diversity(heyelsa_data),
         # Anomaly — defaults, set by run_anomaly node later
         "anomaly_score": 0.0,

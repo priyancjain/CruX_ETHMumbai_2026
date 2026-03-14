@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     OPENAI_TIMEOUT: int = 120
 
     # HeyElsa x402
+    HEYELSA_ENABLED: bool = True
     HEYELSA_BASE_URL: str = "https://x402-api.heyelsa.ai"
     HEYELSA_WALLET_ADDRESS: str = ""
     HEYELSA_WALLET_PRIVATE_KEY: str = ""

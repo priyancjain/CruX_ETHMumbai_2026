@@ -5,6 +5,7 @@ from web3 import Web3
 
 class ScoreRequest(BaseModel):
     wallet_address: str
+    agent_id: Optional[str] = None  # ENSIP-25: agent's registry ID (default "0")
     requested_by: Optional[str] = None
     priority: int = 5
 
@@ -37,6 +38,8 @@ class ScoreResponse(BaseModel):
     model_used: str = "o3"
     anomaly_score: Optional[float] = None
     is_anomaly: bool = False
+    ensip25_verified: bool = False
+    ens_name: Optional[str] = None
     onchain_tx_hash: Optional[str] = None
     scored_at: Optional[str] = None
     expires_at: Optional[str] = None

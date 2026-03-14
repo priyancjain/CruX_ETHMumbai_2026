@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Header
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 from app.models.score import ScoreRequest, ScoreResponse, ScoreQueuedResponse
 from app.services.supabase import anon_client, service_client
@@ -28,7 +28,25 @@ async def request_score(body: ScoreRequest):
         score = existing.data[0]
         return ScoreResponse(**score, cached=True)
 
-    # Check for already pending/processing request for same wallet
+    # Expire stale pending/processing requests (older than 5 minutes)
+    stale_cutoff = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+    stale = (
+        service_client.table("score_requests")
+        .select("id")
+        .eq("wallet_address", wallet)
+        .in_("status", ["pending", "processing"])
+        .lt("created_at", stale_cutoff)
+        .execute()
+    )
+    if stale.data:
+        for s in stale.data:
+            service_client.table("score_requests").update({
+                "status": "failed",
+                "error_message": "Expired — stale request",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", s["id"]).execute()
+
+    # Check for already pending/processing request for same wallet (fresh only)
     pending = (
         anon_client.table("score_requests")
         .select("id, status")
@@ -45,12 +63,15 @@ async def request_score(body: ScoreRequest):
         )
 
     # Queue scoring request
-    result = service_client.table("score_requests").insert({
+    request_row = {
         "wallet_address": wallet,
         "requested_by": body.requested_by,
         "priority": body.priority,
         "status": "pending",
-    }).execute()
+    }
+    if body.agent_id:
+        request_row["agent_id"] = body.agent_id
+    result = service_client.table("score_requests").insert(request_row).execute()
 
     request_id = result.data[0]["id"] if result.data else "unknown"
     return ScoreQueuedResponse(
@@ -79,7 +100,19 @@ async def get_score(wallet_address: str):
             detail="No score found. POST /score to request scoring.",
         )
 
-    return ScoreResponse(**result.data[0])
+    score = result.data[0]
+    # Extract ENSIP-25 fields from raw_features if not already top-level
+    raw = score.get("raw_features") or {}
+    if isinstance(raw, dict):
+        ensip25_raw = raw.get("ensip25") or {}
+        if isinstance(ensip25_raw, dict):
+            score.setdefault("ensip25_verified", ensip25_raw.get("ensip25_verified", False))
+            score.setdefault("ens_name", ensip25_raw.get("ens_name"))
+        else:
+            score.setdefault("ensip25_verified", raw.get("ensip25_verified", False))
+            score.setdefault("ens_name", raw.get("ens_name"))
+
+    return ScoreResponse(**score)
 
 
 @router.get("/{wallet_address}/history")
@@ -119,7 +152,7 @@ async def score_sync(
     request_id = req_result.data[0]["id"] if req_result.data else "sync"
 
     # Run pipeline synchronously
-    result = await run_scoring_pipeline(body.wallet_address, request_id)
+    result = await run_scoring_pipeline(body.wallet_address, request_id, agent_id=body.agent_id or "0")
 
     # Fetch the saved score
     score_id = result.get("score_id")
