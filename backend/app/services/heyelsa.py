@@ -1,4 +1,5 @@
 import logging
+import traceback
 from eth_account import Account
 from x402 import x402Client
 from x402.http.clients import x402HttpxClient
@@ -82,7 +83,7 @@ async def _call_x402_endpoint(x402_client: x402Client, url: str, body: dict) -> 
     Returns parsed JSON response or None on failure.
     """
     try:
-        async with x402HttpxClient(x402_client) as client:
+        async with x402HttpxClient(x402_client, timeout=60) as client:
             resp = await client.post(url, json=body)
             await resp.aread()
             logger.info(f"[HeyElsa] {url} → HTTP {resp.status_code}")
@@ -94,5 +95,6 @@ async def _call_x402_endpoint(x402_client: x402Client, url: str, body: dict) -> 
 
     except Exception as e:
         logger.error(f"[HeyElsa] {url} failed: {e}")
+        logger.error(f"[HeyElsa] Traceback:\n{traceback.format_exc()}")
 
     return None
