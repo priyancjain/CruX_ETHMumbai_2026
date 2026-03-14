@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from datetime import datetime, timezone, timedelta
 from openai import OpenAI
 from app.config import get_settings
 from app.pipeline.state import AgentScoreState
@@ -563,6 +564,11 @@ async def save_score(state: AgentScoreState) -> dict:
     enriched_features["ensip25"] = ens_data
     enriched_features["tx_analysis"] = tx_analysis
 
+
+    # Calculate expiry (30 days)
+    scored_at = datetime.now(timezone.utc)
+    expires_at = scored_at + timedelta(days=30)
+
     score_row = {
         "agent_id": agent_id,
         "wallet_address": wallet,
@@ -577,12 +583,14 @@ async def save_score(state: AgentScoreState) -> dict:
         "model_used": "o3",
         "anomaly_score": features.get("anomaly_score", 0),
         "is_anomaly": features.get("is_anomaly", False),
+        "scored_at": scored_at.isoformat(),
+        "expires_at": expires_at.isoformat(),
     }
 
     result = service_client.table("scores").insert(score_row).execute()
     score_id = result.data[0]["id"] if result.data else None
 
-    logger.info(f"  Score saved: id={score_id}, score={gpt['score']}, tier={gpt['tier']}")
+    logger.info(f"  Score saved: id={score_id}, score={gpt['score']}, tier={gpt['tier']} (expires {expires_at.isoformat()})")
 
     return {"score_id": score_id}
 

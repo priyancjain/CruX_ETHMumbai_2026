@@ -22,22 +22,33 @@ async def check_eligibility(body: LoanEligibilityRequest):
     # Normalise address to lowercase to match database storage
     wallet_address_low = body.wallet_address.lower()
 
+
     result = (
         anon_client.table("scores")
         .select("*")
         .eq("wallet_address", wallet_address_low)
-        .gte("expires_at", datetime.now(timezone.utc).isoformat())
         .order("scored_at", desc=True)
         .limit(1)
         .execute()
     )
 
-
     if not result.data:
         raise HTTPException(
             status_code=404,
-            detail="No valid score found for this wallet. Please request a score first before checking loan eligibility."
+            detail="No score record found for this wallet. Please request an AgentScore first to determine loan eligibility."
         )
+
+    score_data = result.data[0]
+    
+    # Expiry check in Python for better resilience
+    expires_at_str = score_data.get("expires_at")
+    if expires_at_str:
+        expires_at = datetime.fromisoformat(expires_at_str.replace("Z", "+00:00"))
+        if expires_at < datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=404,
+                detail="Your last AgentScore has expired. Please request a fresh score to check eligibility."
+            )
 
     score_data = result.data[0]
     tier = score_data.get("tier", "D")
