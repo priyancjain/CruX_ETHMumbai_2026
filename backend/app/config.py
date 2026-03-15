@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # OpenAI
     OPENAI_API_KEY: str
-    OPENAI_MODEL: str = "o3"
+    OPENAI_MODEL: str = "gpt-5.2"
     OPENAI_MAX_TOKENS: int = 4096
     OPENAI_TIMEOUT: int = 120
 
