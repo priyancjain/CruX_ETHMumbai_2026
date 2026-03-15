@@ -33,7 +33,7 @@ export default function Home() {
   const [platformCounts, setPlatformCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    getStats().then(setStats).catch(() => {});
+    getStats().then(setStats).catch(() => { });
     getPlatforms()
       .then((platforms: any[]) => {
         const counts: Record<string, number> = {};
@@ -42,7 +42,7 @@ export default function Home() {
         }
         setPlatformCounts(counts);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -91,7 +91,7 @@ export default function Home() {
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    
+
     if (searchMode === "name") {
       if (!searchQuery.trim() || searchQuery.trim().length < 2) {
         setSearchError("Enter at least 2 characters to search.");
@@ -117,8 +117,8 @@ export default function Home() {
 
     // Wallet Mode Scoring Flow
     const wallet = searchQuery.trim();
-    if (!wallet || !wallet.startsWith("0x") || wallet.length !== 42) {
-      setSearchError("Enter a valid EVM wallet address (0x...)");
+    if (!wallet || wallet.length < 30) {
+      setSearchError("Enter a valid agent address (EVM 0x... or Cosmos fetch1...)");
       return;
     }
     setSearchLoading(true);
@@ -189,22 +189,20 @@ export default function Home() {
             <button
               type="button"
               onClick={() => { setSearchMode("name"); setSearchError(""); }}
-              className={`flex-1 py-2.5 font-mono text-xs font-semibold tracking-widest uppercase transition-all border-r border-[#e0e0e0] ${
-                searchMode === "name"
+              className={`flex-1 py-2.5 font-mono text-xs font-semibold tracking-widest uppercase transition-all border-r border-[#e0e0e0] ${searchMode === "name"
                   ? "bg-white text-[#1DB954] border-b-2 border-b-[#1DB954]"
                   : "text-gray-400 hover:text-gray-700 hover:bg-white/60"
-              }`}
+                }`}
             >
               Search by Name / Purpose
             </button>
             <button
               type="button"
               onClick={() => { setSearchMode("wallet"); setSearchError(""); }}
-              className={`flex-1 py-2.5 font-mono text-xs font-semibold tracking-widest uppercase transition-all ${
-                searchMode === "wallet"
+              className={`flex-1 py-2.5 font-mono text-xs font-semibold tracking-widest uppercase transition-all ${searchMode === "wallet"
                   ? "bg-white text-[#1DB954] border-b-2 border-b-[#1DB954]"
                   : "text-gray-400 hover:text-gray-700 hover:bg-white/60"
-              }`}
+                }`}
             >
               ⚡ Score by Wallet ID
             </button>
@@ -215,7 +213,7 @@ export default function Home() {
             <div className="flex border border-t-0 border-[#e0e0e0] rounded-b-xl overflow-hidden bg-white shadow-sm">
               <div className="relative flex-1">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
                 </div>
                 <input
                   type="text"
@@ -288,9 +286,8 @@ export default function Home() {
           ].map((s, i) => (
             <div
               key={s.label}
-              className={`bg-white px-6 py-5 ${
-                i < 2 ? "border-r border-[#e0e0e0]" : ""
-              }`}
+              className={`bg-white px-6 py-5 ${i < 2 ? "border-r border-[#e0e0e0]" : ""
+                }`}
             >
               <p className={`stat-number ${s.color}`}>{s.value}</p>
               <p className="terminal-label mt-1">{s.label}</p>
