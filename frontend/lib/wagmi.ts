@@ -21,7 +21,7 @@ const getWagmiConfig = () => {
       },
     ],
     { 
-      appName: "AgentScore", 
+      appName: "0xTrust", 
       projectId: projectId 
     }
   );

@@ -1,6 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, Cell, AreaChart, Area
@@ -18,15 +19,25 @@ interface AIAnalysisProps {
   features?: any;
 }
 
+const PIPELINE_STEPS = [
+  "Generating Behavioral Summary..."
+];
+
 export default function AIAnalysis({ analysis, activityData = [], features }: AIAnalysisProps) {
   // If no analysis at all, or only an empty object was returned (no summary)
   if (!analysis || !analysis.summary) {
     return (
-      <div className="glass-card p-12 text-center bg-white/50 border-dashed border-2">
-        <p className="text-4xl mb-4">🤖</p>
-        <h3 className="text-lg font-display font-black text-gray-900">LLM Analysis Pending</h3>
-        <p className="text-sm text-gray-500 font-mono mt-2 max-w-md mx-auto">
-          Deep behavioral analysis is being generated. This usually takes 30-60 seconds after the initial score request.
+      <div className="glass-card p-12 text-center bg-white/50 border-dashed border-2 flex flex-col items-center justify-center min-h-[300px]">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+          className="w-8 h-8 rounded-full border-t-2 border-b-2 border-[#1DB954] mb-4"
+        />
+        <h3 className="text-lg font-display font-black text-gray-900 absolute">
+          {PIPELINE_STEPS[0]}
+        </h3>
+        <p className="text-sm text-gray-500 font-mono mt-8 max-w-md mx-auto">
+          Deep ML behavioral analysis is running. This usually takes 15-30 seconds after the core score is generated.
         </p>
       </div>
     );
@@ -120,7 +131,7 @@ export default function AIAnalysis({ analysis, activityData = [], features }: AI
         <div className="glass-card p-6 bg-white">
           <h4 className="text-xs font-display font-black text-gray-900 uppercase tracking-tight mb-4 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-red-500" />
-            AI Risk Assessment
+            ML Risk Assessment
           </h4>
           <div className="space-y-3">
             {risk_indicators && risk_indicators.length > 0 ? (
@@ -135,7 +146,7 @@ export default function AIAnalysis({ analysis, activityData = [], features }: AI
                 <span className="text-lg">✅</span>
                 <div>
                   <p className="text-sm text-green-800 font-bold">No High-Risk Patterns</p>
-                  <p className="text-[10px] text-green-600 font-mono">Clean behavioral profile detected by LLM.</p>
+                  <p className="text-[10px] text-green-600 font-mono">Clean behavioral profile detected by ML Model.</p>
                 </div>
               </div>
             )}

@@ -72,7 +72,7 @@ export default function ScoreCard({
         <div className="flex items-center gap-10">
           {/* Main Score Display */}
           <div className="flex flex-col">
-            <p className="text-[10px] text-gray-400 font-mono tracking-widest uppercase font-bold mb-1">Agent Credit Rating</p>
+            <p className="text-[10px] text-gray-400 font-mono tracking-widest uppercase font-bold mb-1">0xTrust Credit Rating</p>
             <div className="flex items-baseline gap-2">
               <span className="text-8xl font-display font-black tracking-tighter" style={{ color: tierCfg.color }}>
                 {displayScore}

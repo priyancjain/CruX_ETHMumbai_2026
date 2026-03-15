@@ -36,7 +36,7 @@ export default function LenderPortal({ wallet, score }: { wallet: string; score:
       // Modern DeFi matching engines use signed intents (off-chain) rather than raw transfers to prevent upfront gas costs.
       await signTypedDataAsync({
         domain: {
-          name: "AgentScore Protocol",
+          name: "0xTrust Protocol",
           version: "1",
           chainId: 8453, // Base Mainnet
         },
@@ -81,7 +81,7 @@ export default function LenderPortal({ wallet, score }: { wallet: string; score:
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-4">
           <p className="text-sm text-slate-400">
-            Simulate a DeFi protocol using the AgentScore API to underwrite and issue a loan continuously based on {wallet.slice(0, 6)}... profile.
+            Simulate a DeFi protocol using the 0xTrust API to underwrite and issue a loan continuously based on {wallet.slice(0, 6)}... profile.
           </p>
 
           <div className="space-y-4 pt-2">

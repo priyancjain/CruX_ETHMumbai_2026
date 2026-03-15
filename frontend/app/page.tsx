@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   requestScore,
   discoverAgents,
@@ -14,6 +15,14 @@ import { supabase } from "@/lib/supabase";
 import AgentCard from "@/components/AgentCard";
 import PlatformTabs from "@/components/PlatformTabs";
 
+const NAMES = [
+  "Score.",
+  "Trust.",
+  "Cred.",
+  "Rank.",
+  "Pulse."
+];
+
 export default function Home() {
   const router = useRouter();
 
@@ -22,6 +31,16 @@ export default function Home() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [isSearchResults, setIsSearchResults] = useState(false);
+
+  // Animation states
+  const [nameIndex, setNameIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNameIndex((prev) => (prev + 1) % NAMES.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   const [platform, setPlatform] = useState("virtuals");
   const [agents, setAgents] = useState<any[]>([]);
@@ -157,41 +176,69 @@ export default function Home() {
   }
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-12 overflow-hidden">
 
       {/* ── Hero ── */}
-      <section className="pt-14 pb-6">
+      <section className="pt-14 pb-6 flex flex-col items-center text-center">
         {/* Eyebrow */}
-        <div className="flex items-center gap-2 mb-5">
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="flex items-center justify-center gap-2 mb-5"
+        >
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#1DB954]/40 bg-[#1DB954]/08 text-[#1DB954] text-[11px] font-mono font-semibold tracking-wider uppercase">
             <span className="w-1.5 h-1.5 rounded-full bg-[#1DB954] animate-pulse" />
             On-Chain Credit Rating
           </span>
           <span className="text-[11px] font-mono text-gray-400">BASE · ETH Mumbai 2026</span>
-        </div>
+        </motion.div>
 
-        {/* Main headline — left-aligned, editorial */}
-        <h1 className="font-display text-6xl md:text-8xl font-black tracking-tight text-gray-900 leading-[0.95] mb-6">
-          Agent<br />
-          <span className="text-[#1DB954]">Score.</span>
-        </h1>
+        {/* Main headline — center-aligned, editorial */}
+        <motion.h1
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
+          className="font-display text-6xl md:text-8xl font-black tracking-tight text-gray-900 leading-[0.95] mb-6 flex flex-col items-center"
+        >
+          <span>Agent</span>
+          <div className="h-[72px] md:h-[110px] overflow-hidden relative w-full flex justify-center">
+            <AnimatePresence mode="popLayout">
+              <motion.span
+                key={NAMES[nameIndex]}
+                initial={{ y: 80, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -80, opacity: 0 }}
+                transition={{ duration: 0.4, ease: "easeInOut" }}
+                className="text-[#1DB954] absolute"
+              >
+                {NAMES[nameIndex]}
+              </motion.span>
+            </AnimatePresence>
+          </div>
+        </motion.h1>
 
-        <p className="text-gray-500 text-lg max-w-lg leading-relaxed font-body mb-8">
+        <motion.p
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
+          className="text-gray-500 text-lg max-w-2xl mx-auto leading-relaxed font-body mb-8"
+        >
           Universal credit infrastructure for autonomous AI agents.
           Browse, score, and underwrite agents across every platform
           using live on-chain behavioral data.
-        </p>
+        </motion.p>
 
         {/* Search card — terminal style */}
-        <div className="max-w-2xl">
+        <div className="w-full max-w-2xl">
           {/* Mode toggle */}
           <div className="flex gap-0 mb-0 border border-[#e0e0e0] rounded-t-xl overflow-hidden bg-[#f5f5f5]">
             <button
               type="button"
               onClick={() => { setSearchMode("name"); setSearchError(""); }}
               className={`flex-1 py-2.5 font-mono text-xs font-semibold tracking-widest uppercase transition-all border-r border-[#e0e0e0] ${searchMode === "name"
-                  ? "bg-white text-[#1DB954] border-b-2 border-b-[#1DB954]"
-                  : "text-gray-400 hover:text-gray-700 hover:bg-white/60"
+                ? "bg-white text-[#1DB954] border-b-2 border-b-[#1DB954]"
+                : "text-gray-400 hover:text-gray-700 hover:bg-white/60"
                 }`}
             >
               Search by Name / Purpose
@@ -200,8 +247,8 @@ export default function Home() {
               type="button"
               onClick={() => { setSearchMode("wallet"); setSearchError(""); }}
               className={`flex-1 py-2.5 font-mono text-xs font-semibold tracking-widest uppercase transition-all ${searchMode === "wallet"
-                  ? "bg-white text-[#1DB954] border-b-2 border-b-[#1DB954]"
-                  : "text-gray-400 hover:text-gray-700 hover:bg-white/60"
+                ? "bg-white text-[#1DB954] border-b-2 border-b-[#1DB954]"
+                : "text-gray-400 hover:text-gray-700 hover:bg-white/60"
                 }`}
             >
               ⚡ Score by Wallet ID

@@ -3,6 +3,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { getAgent, getScoreHistory, requestScore, getActivityHeatmap, getAgentAnalysis } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import ScoreCard from "@/components/ScoreCard";
@@ -16,6 +17,15 @@ import Tooltip from "@/components/Tooltip";
 import TransactionCharts from "@/components/TransactionCharts";
 
 type Tab = "overview" | "analysis" | "transactions";
+
+const PIPELINE_STEPS = [
+  "Initializing Agent Crawlers...",
+  "Fetching On-Chain Data (Alchemy)...",
+  "Verifying Identity (ENS & ERC-8004)...",
+  "Aggregating Behavioral Features...",
+  "Running ML Anomaly Detection...",
+  "Calculating Final Credit Score..."
+];
 
 const SIGNAL_MAP: Record<string, { label: string; desc: string; icon?: string; category: string }> = {
   wallet_age_days: { label: "Wallet Age", desc: "Days since the first transaction on Base.", category: "Activity" },
@@ -45,7 +55,6 @@ const SIGNAL_MAP: Record<string, { label: string; desc: string; icon?: string; c
   heyelsa_wallet_label: { label: "Behavioral Tag", desc: "AI classification of wallet behavior.", category: "Market" },
 };
 
-
 export default function AgentPage() {
   const params = useParams();
   const wallet = params.wallet as string;
@@ -59,6 +68,19 @@ export default function AgentPage() {
   const [loading, setLoading] = useState(true);
   const [scoring, setScoring] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
+
+  const [stepIndex, setStepIndex] = useState(0);
+
+  useEffect(() => {
+    if (!scoring) {
+      setStepIndex(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setStepIndex((prev) => (prev < PIPELINE_STEPS.length - 1 ? prev + 1 : prev));
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [scoring]);
 
   const scoreIdBeforePolling = useRef<string | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -89,12 +111,12 @@ export default function AgentPage() {
           setScore(data.latest_score);
           setFeatures(data.features);
           setScoring(false);
-          
+
           // Refresh others
           const [hist, activity, analysis] = await Promise.all([
-             getScoreHistory(wallet).catch(() => ({ scores: [] })),
-             getActivityHeatmap(wallet).catch(() => ({ activity: [] })),
-             getAgentAnalysis(wallet).catch(() => ({ analysis: null }))
+            getScoreHistory(wallet).catch(() => ({ scores: [] })),
+            getActivityHeatmap(wallet).catch(() => ({ activity: [] })),
+            getAgentAnalysis(wallet).catch(() => ({ analysis: null }))
           ]);
           setHistory(hist.scores || []);
           setActivityData(activity.activity || []);
@@ -197,7 +219,7 @@ export default function AgentPage() {
       <div className="flex items-center justify-center py-32">
         <div className="text-center space-y-4">
           <div className="flex gap-1 justify-center">
-            {[0,1,2].map(i => (
+            {[0, 1, 2].map(i => (
               <div key={i} className="w-2 h-8 bg-[#1DB954] rounded-full animate-pulse" style={{ animationDelay: `${i * 0.15}s` }} />
             ))}
           </div>
@@ -208,9 +230,9 @@ export default function AgentPage() {
   }
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: "overview", label: "Overview", icon: "📊" },
-    { id: "analysis", label: "Analysis", icon: "🤖" },
-    { id: "transactions", label: "Transactions", icon: "🔁" },
+    { id: "overview", label: "Overview", icon: "❖" },
+    { id: "analysis", label: "Analysis", icon: "✧" },
+    { id: "transactions", label: "Transactions", icon: "⇄" },
   ];
 
   const categories = ["Activity", "Economics", "Reputation", "Safety", "Market"];
@@ -245,17 +267,29 @@ export default function AgentPage() {
 
       {/* ── Scoring in progress ── */}
       {scoring && !score && (
-        <div className="glass-card p-6 border-[#1DB954]/20">
-          <div className="flex items-center justify-center gap-3">
-            <div className="flex gap-1">
-              {[0,1,2].map(i => (
-                <div key={i} className="w-1.5 h-4 bg-[#1DB954] rounded-full animate-pulse" style={{ animationDelay: `${i * 0.15}s` }} />
-              ))}
-            </div>
-            <p className="text-[#1DB954] font-mono text-sm">
-              Scoring in progress — analyzing on-chain data across platforms...
-            </p>
+        <div className="glass-card p-12 text-center border-[#1DB954]/20 flex flex-col items-center justify-center min-h-[300px]">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+            className="w-8 h-8 rounded-full border-t-2 border-b-2 border-[#1DB954] mb-6"
+          />
+          <div className="h-6 relative w-full max-w-md overflow-hidden flex justify-center">
+            <AnimatePresence mode="popLayout">
+              <motion.h3
+                key={PIPELINE_STEPS[stepIndex]}
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -20, opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="text-lg font-display font-black text-gray-900 absolute"
+              >
+                {PIPELINE_STEPS[stepIndex]}
+              </motion.h3>
+            </AnimatePresence>
           </div>
+          <p className="text-sm text-gray-500 font-mono mt-4 max-w-md mx-auto">
+            Deep ML behavioral analysis is running. This usually takes 15-30 seconds.
+          </p>
         </div>
       )}
 
@@ -280,11 +314,10 @@ export default function AgentPage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 text-sm font-display font-semibold px-5 py-2 rounded-lg transition-all ${
-              activeTab === tab.id
-                ? "bg-white text-gray-900 shadow-sm border border-gray-200"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
+            className={`flex items-center gap-1.5 text-sm font-display font-semibold px-5 py-2 rounded-lg transition-all ${activeTab === tab.id
+              ? "bg-white text-gray-900 shadow-sm border border-gray-200"
+              : "text-gray-500 hover:text-gray-700"
+              }`}
           >
             <span>{tab.icon}</span>
             {tab.label}
@@ -332,7 +365,7 @@ export default function AgentPage() {
                         {catSignals.map(([key, value]) => {
                           const meta = SIGNAL_MAP[key];
                           const displayVal = value === null ? "null" : String(value);
-                          
+
                           return (
                             <div
                               key={key}
@@ -344,17 +377,16 @@ export default function AgentPage() {
                                 </p>
                                 <Tooltip content={meta?.desc || "Raw parameter from on-chain analysis."}>
                                   <div className="cursor-help text-gray-300 hover:text-gray-600">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
                                   </div>
                                 </Tooltip>
                               </div>
 
-                              <p className={`text-sm font-mono font-bold ${
-                                displayVal === "true" ? "text-[#1DB954]" :
+                              <p className={`text-sm font-mono font-bold ${displayVal === "true" ? "text-[#1DB954]" :
                                 displayVal === "false" ? "text-[#FF3B30]" :
-                                displayVal === "null" || displayVal === "0" ? "text-gray-400" :
-                                "text-gray-900"
-                              }`}>
+                                  displayVal === "null" || displayVal === "0" ? "text-gray-400" :
+                                    "text-gray-900"
+                                }`}>
                                 {displayVal}
                               </p>
                             </div>
@@ -364,14 +396,14 @@ export default function AgentPage() {
                     </div>
                   );
                 })}                </div>
-              </div>
-            )}
-          </>
-        )}
+            </div>
+          )}
+        </>
+      )}
       {activeTab === "analysis" && (
-        <AIAnalysis 
-          analysis={agentAnalysis} 
-          activityData={activityData} 
+        <AIAnalysis
+          analysis={agentAnalysis}
+          activityData={activityData}
           features={features}
         />
       )}
