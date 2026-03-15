@@ -57,32 +57,10 @@ async def search_agents(q: str, limit: int = 30):
             seen.add(w_low)
             merged.append(row)
 
-    # Enrich with latest scores
-    # Use sorted lowercased wallets for consistent cache mapping
-    wallets_map = {a["wallet_address"].lower(): a["wallet_address"] for a in merged if a.get("wallet_address")}
-    lowercased_wallets = list(wallets_map.keys())[:100]
-
-    cached_scores: dict = {}
-    if lowercased_wallets:
-        try:
-            score_res = (
-                service_client.table("scores")
-                .select("wallet_address, score, tier")
-                .in_("wallet_address", lowercased_wallets)
-                .order("scored_at", desc=True)
-                .execute()
-            )
-            for s in (score_res.data or []):
-                w_low = s["wallet_address"].lower()
-                if w_low not in cached_scores:
-                    cached_scores[w_low] = {"score": s["score"], "tier": s["tier"]}
-        except Exception:
-            pass
-
+    # Return the merged agents without preemptively fetching cached scores
     result_agents = []
     for agent in merged:
         w = agent.get("wallet_address", "")
-        w_low = w.lower() if w else ""
         
         # Flatten metadata subfields if present
         meta = agent.get("metadata") or {}
@@ -92,19 +70,14 @@ async def search_agents(q: str, limit: int = 30):
             "agent_name": agent.get("agent_name", ""),
             "description": agent.get("description", ""),
             "platform": agent.get("platform", ""),
-            "score": cached_scores.get(w_low, {}).get("score"),
-            "tier": cached_scores.get(w_low, {}).get("tier"),
+            "score": None,  # Always hide score on the card overview per user request
+            "tier": None,
             "image_url": meta.get("image_url", ""),
             "mcap_usd": meta.get("mcap_usd"),
             "holder_count": meta.get("holder_count"),
             "chain": meta.get("chain", ""),
             "is_evm_wallet": w.startswith("0x"),
         }
-        
-        # Security: if no score found, ensure fields are null/None
-        if w_low not in cached_scores:
-            agent_obj["score"] = None
-            agent_obj["tier"] = None
             
         result_agents.append(agent_obj)
 
@@ -119,8 +92,9 @@ async def list_agents(
     page: int = 1,
     page_size: int = 50,
 ):
-    """List agents with optional filters, joined with latest score."""
-    query = anon_client.table("agents").select("*, scores(score, tier, scored_at)")
+    """List agents with optional filters, without joining cached scores."""
+    # Do not join the scores table so we don't leak cached scores
+    query = anon_client.table("agents").select("*")
 
     if platform:
         query = query.eq("platform", platform)
@@ -133,17 +107,10 @@ async def list_agents(
     result = query.execute()
     agents = result.data or []
 
-    # Flatten latest score into agent
+    # Ensure score and tier are null so the frontend shows "NOT YET SCORED"
     for agent in agents:
-        scores = agent.pop("scores", [])
-        if scores:
-            # Table join in Supabase should handle case naming but we order by scored_at
-            latest = sorted(scores, key=lambda x: x.get('scored_at', ''), reverse=True)[0]
-            agent["score"] = latest.get("score")
-            agent["tier"] = latest.get("tier")
-        else:
-            agent["score"] = None
-            agent["tier"] = None
+        agent["score"] = None
+        agent["tier"] = None
 
     # Filter by tier if requested (post-query since it's in joined table)
     if tier:
