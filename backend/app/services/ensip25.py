@@ -50,6 +50,10 @@ async def check_ensip25(wallet_address: str, agent_id=None) -> dict:
     rpc_url = settings.ALCHEMY_ETH_RPC
 
     try:
+        if not wallet_address.lower().startswith("0x"):
+            logger.info(f"[ENSIP-25] Skipped — {wallet_address} is not an EVM address")
+            return {"ens_name": None, "ensip25_verified": False}
+            
         checksum_addr = Web3.to_checksum_address(wallet_address)
 
         # Step 1: Reverse resolve wallet → ENS name

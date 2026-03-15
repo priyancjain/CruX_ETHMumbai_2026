@@ -4,7 +4,7 @@ import Providers from "@/components/providers";
 import ConnectWallet from "@/components/ConnectWallet";
 
 export const metadata: Metadata = {
-  title: "AgentScore — Universal Credit Rating for AI Agents",
+  title: "0xTrust — Universal Credit Rating for AI Agents",
   description:
     "The CIBIL for autonomous AI agents. Cross-platform on-chain credit scoring, underwriting, and DeFi lending.",
 };
@@ -42,17 +42,18 @@ export default function RootLayout({
           <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-[#e0e0e0] shadow-sm">
             <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
 
-              {/* Logo — new distinctive wordmark */}
+              {/* Logo — new 0xTrust branding */}
               <a href="/" className="flex items-center gap-2.5 group shrink-0">
-                {/* Icon mark: stacked bars like a credit score chart */}
-                <div className="flex flex-col gap-[3px] w-6 h-6 justify-center">
-                  <div className="h-[5px] w-full bg-[#1DB954] rounded-sm" />
-                  <div className="h-[5px] w-[70%] bg-[#1DB954]/60 rounded-sm" />
-                  <div className="h-[5px] w-[45%] bg-[#1DB954]/30 rounded-sm" />
+                {/* Icon mark: simplified shield with cross from 0xTrust logo */}
+                <div className="relative w-6 h-6 flex items-center justify-center">
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full text-[#1DB954]">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M8 8l8 8M16 8l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
                 </div>
-                {/* Wordmark — Space Grotesk avoided per skill, using Sora */}
-                <span className="font-display font-black text-lg tracking-[-0.04em] text-gray-900">
-                  agent<span className="text-[#1DB954]">score</span>
+                {/* Wordmark */}
+                <span className="font-display font-black text-xl tracking-[-0.04em] text-gray-900">
+                  <span className="text-[#1DB954]">0x</span>Trust.
                 </span>
               </a>
 
@@ -92,8 +93,8 @@ export default function RootLayout({
           {/* ── Footer ── */}
           <footer className="border-t border-[#e0e0e0] mt-20 py-8">
             <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-              <span className="font-display font-black text-sm tracking-[-0.04em] text-gray-900">
-                agent<span className="text-[#1DB954]">score</span>
+              <span className="font-display font-black text-lg tracking-[-0.04em] text-gray-900">
+                <span className="text-[#1DB954]">0x</span>Trust.
               </span>
               <p className="text-xs font-mono text-gray-400">
                 ETH Mumbai 2026 · Universal Credit Rating for AI Agents

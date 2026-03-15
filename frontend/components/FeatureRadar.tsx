@@ -18,20 +18,22 @@ function normalize(value: number, max: number): number {
 }
 
 export default function FeatureRadar({ features }: FeatureRadarProps) {
+
   const data = [
-    { label: "Age", value: normalize(features.wallet_age_days || 0, 1000) },
-    { label: "TX 90d", value: normalize(features.tx_count_90d || 0, 500) },
-    { label: "TVL", value: normalize(features.tvl_usd || 0, 100000) },
-    { label: "DeFi", value: normalize(features.defi_protocol_count || 0, 20) },
-    { label: "Rep", value: normalize(features.erc8004_reputation || 0, 10) },
+    { label: "Wallet Age", value: normalize(features.wallet_age_days || 0, 1000) },
+    { label: "90D Act", value: normalize(features.tx_count_90d || 0, 500) },
+    { label: "NAV (USD)", value: normalize(features.tvl_usd || 0, 100000) },
+    { label: "Protocols", value: normalize(features.defi_protocol_count || 0, 20) },
+    { label: "Reputation", value: normalize(features.erc8004_reputation || 0, 10) },
     { label: "Jobs", value: normalize(features.erc8004_job_count || 0, 100) },
     { label: "Platforms", value: normalize(features.platform_count || 0, 5) },
     { label: "Chains", value: normalize(features.cross_chain_count || 0, 5) },
-    { label: "Balance", value: normalize((features.balance_eth || 0) + (features.balance_usdc || 0) / 3000, 10) },
-    { label: "PnL", value: normalize(Math.max(features.total_pnl_usd || 0, 0), 50000) },
-    { label: "Win %", value: normalize((features.win_rate || 0) * 100, 100) },
-    { label: "Risk", value: normalize(100 - (features.heyelsa_risk_score || 0), 100) },
+    { label: "Liquidity", value: normalize((features.balance_eth || 0) + (features.balance_usdc || 0) / 3000, 10) },
+    { label: "Profitability", value: normalize(Math.max(features.total_pnl_usd || 0, 0), 50000) },
+    { label: "Win Rate", value: normalize((features.win_rate || 0) * 100, 100) },
+    { label: "Safety", value: normalize(100 - (features.heyelsa_risk_score || 0), 100) },
   ];
+
 
   return (
     <div className="glass-card p-6">

@@ -80,67 +80,14 @@ async def discover_all_platforms(page: int = 1, page_size: int = 20):
 
 
 async def _enrich_with_scores(agents: list) -> list:
-    """Attach cached scores to agents from Supabase.
+    """Ensure cached scores are not sent to the frontend.
     
-    IMPORTANT: we normalise all wallet addresses to lowercase before
-    matching so that checksummed / mixed-case addresses from platform
-    crawlers don't accidentally match the wrong score row (or miss
-    matches entirely).
+    This ensures that the directory listing does not reveal pre-computed
+    scores, forcing the user to click into the agent profile to view them.
     """
-    # Build a lowercase-keyed map of raw → normalised wallet addresses
-    wallet_norm_map: dict[str, str] = {}
-    for a in agents:
-        w = a.get("wallet_address", "")
-        if w and w.startswith("0x"):
-            wallet_norm_map[w] = w.lower()
-
-    if not wallet_norm_map:
-        return agents
-
-    lowercased_wallets = list(set(wallet_norm_map.values()))[:100]
-
-    cached_scores: dict[str, dict] = {}
-    try:
-        scores_result = (
-            service_client.table("scores")
-            .select("wallet_address, score, tier")
-            .in_("wallet_address", lowercased_wallets)
-            .order("scored_at", desc=True)
-            .execute()
-        )
-        for s in (scores_result.data or []):
-            # key by lowercased address so lookup is consistent
-            w_low = s["wallet_address"].lower()
-            if w_low not in cached_scores:
-                cached_scores[w_low] = {"score": s["score"], "tier": s["tier"]}
-
-        # Second pass: try original-case addresses in case DB stores them that way
-        if not cached_scores:
-            scores_result2 = (
-                service_client.table("scores")
-                .select("wallet_address, score, tier")
-                .in_("wallet_address", list(wallet_norm_map.keys())[:100])
-                .order("scored_at", desc=True)
-                .execute()
-            )
-            for s in (scores_result2.data or []):
-                w_low = s["wallet_address"].lower()
-                if w_low not in cached_scores:
-                    cached_scores[w_low] = {"score": s["score"], "tier": s["tier"]}
-
-    except Exception as e:
-        logger.warning(f"Failed to fetch cached scores: {e}")
-
     for agent in agents:
-        w = agent.get("wallet_address", "")
-        w_low = w.lower() if w else ""
-        if w_low in cached_scores:
-            agent["score"] = cached_scores[w_low]["score"]
-            agent["tier"] = cached_scores[w_low]["tier"]
-        else:
-            # Explicitly clear any stale score fields so the card shows "NOT SCORED"
-            agent.pop("score", None)
-            agent.pop("tier", None)
+        agent["score"] = None
+        agent["tier"] = None
 
     return agents
 

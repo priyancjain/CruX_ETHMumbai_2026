@@ -35,7 +35,7 @@ async def fetch_agent(wallet_address: str) -> dict:
                 name = (agent.get("name") or "").lower()
                 readme = (agent.get("readme") or "").lower()
 
-                if wallet_lower in description or wallet_lower in readme:
+                if wallet_lower in description or wallet_lower in readme or wallet_lower == agent.get("address", "").lower():
                     metadata = agent.get("metadata", {})
                     result = {
                         "found": True,

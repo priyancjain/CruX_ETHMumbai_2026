@@ -56,27 +56,26 @@ export default function AgentCard({
   const router = useRouter();
   const isEvm = is_evm_wallet !== false && wallet_address?.startsWith("0x");
   const hasScore = score !== null && score !== undefined && tier;
+  const hasWallet = !!wallet_address;
 
   function handleClick() {
-    if (isEvm) router.push(`/agent/${wallet_address}`);
+    if (hasWallet) router.push(`/agent/${wallet_address}`);
   }
 
   return (
     <div
       onClick={handleClick}
-      className={`glass-card flex flex-col ${
-        isEvm ? "cursor-pointer" : "opacity-55 cursor-not-allowed"
-      } transition-all duration-250 group`}
+      className={`glass-card flex flex-col ${hasWallet ? "cursor-pointer" : "opacity-55 cursor-not-allowed"
+        } transition-all duration-250 group`}
     >
       {/* Colored top accent based on tier */}
-      <div className={`h-1 rounded-t-xl ${
-        tier === "S" ? "bg-[#1DB954]" :
+      <div className={`h-1 rounded-t-xl ${tier === "S" ? "bg-[#1DB954]" :
         tier === "A" ? "bg-[#5E5CE6]" :
-        tier === "B" ? "bg-[#007AFF]" :
-        tier === "C" ? "bg-[#FF9F0A]" :
-        tier === "D" ? "bg-[#FF3B30]" :
-        "bg-gray-200"
-      }`} />
+          tier === "B" ? "bg-[#007AFF]" :
+            tier === "C" ? "bg-[#FF9F0A]" :
+              tier === "D" ? "bg-[#FF3B30]" :
+                "bg-gray-200"
+        }`} />
 
       <div className="p-6 flex flex-col gap-4 flex-1">
         {/* Top: avatar + name + platform */}
@@ -117,31 +116,31 @@ export default function AgentCard({
         {/* Metrics row */}
         {((mcap_usd !== undefined && mcap_usd > 0) ||
           (holder_count !== undefined && holder_count > 0)) && (
-          <div className="flex gap-5 py-2 border-t border-b border-gray-100">
-            {mcap_usd !== undefined && mcap_usd > 0 && (
-              <div>
-                <p className="text-[10px] text-gray-400 font-mono tracking-widest uppercase">MCap</p>
-                <p className="text-sm text-gray-800 font-mono font-semibold mt-0.5">
-                  ${Number(mcap_usd) >= 1e6
-                    ? `${(Number(mcap_usd) / 1e6).toFixed(1)}M`
-                    : Number(mcap_usd) >= 1e3
-                    ? `${(Number(mcap_usd) / 1e3).toFixed(0)}K`
-                    : Number(mcap_usd).toFixed(0)}
-                </p>
-              </div>
-            )}
-            {holder_count !== undefined && holder_count > 0 && (
-              <div>
-                <p className="text-[10px] text-gray-400 font-mono tracking-widest uppercase">Holders</p>
-                <p className="text-sm text-gray-800 font-mono font-semibold mt-0.5">
-                  {Number(holder_count) >= 1e3
-                    ? `${(Number(holder_count) / 1e3).toFixed(1)}K`
-                    : Number(holder_count).toLocaleString()}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+            <div className="flex gap-5 py-2 border-t border-b border-gray-100">
+              {mcap_usd !== undefined && mcap_usd > 0 && (
+                <div>
+                  <p className="text-[10px] text-gray-400 font-mono tracking-widest uppercase">MCap</p>
+                  <p className="text-sm text-gray-800 font-mono font-semibold mt-0.5">
+                    ${Number(mcap_usd) >= 1e6
+                      ? `${(Number(mcap_usd) / 1e6).toFixed(1)}M`
+                      : Number(mcap_usd) >= 1e3
+                        ? `${(Number(mcap_usd) / 1e3).toFixed(0)}K`
+                        : Number(mcap_usd).toFixed(0)}
+                  </p>
+                </div>
+              )}
+              {holder_count !== undefined && holder_count > 0 && (
+                <div>
+                  <p className="text-[10px] text-gray-400 font-mono tracking-widest uppercase">Holders</p>
+                  <p className="text-sm text-gray-800 font-mono font-semibold mt-0.5">
+                    {Number(holder_count) >= 1e3
+                      ? `${(Number(holder_count) / 1e3).toFixed(1)}K`
+                      : Number(holder_count).toLocaleString()}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
         {/* Score section — larger, with progress bar */}
         <div className="mt-auto">
@@ -169,7 +168,7 @@ export default function AgentCard({
               <span className="text-[11px] text-gray-400 font-mono bg-gray-100 px-2.5 py-1 rounded-md">
                 NOT YET SCORED
               </span>
-              {isEvm && (
+              {hasWallet && (
                 <span className="text-xs text-[#1DB954] font-display font-bold opacity-0 group-hover:opacity-100 transition-opacity">
                   Score Now →
                 </span>
@@ -179,7 +178,7 @@ export default function AgentCard({
         </div>
 
         {/* CTA row */}
-        {isEvm && (
+        {hasWallet && (
           <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
             <span className="text-[11px] text-gray-400 font-mono">
               {isEvm ? "EVM" : "NON-EVM"} · {platform}

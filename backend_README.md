@@ -6,7 +6,7 @@ The AgentScore backend is the core engine for generating credit scores for auton
 ## 2. Tech Stack
 * **Framework**: FastAPI (Python 3.10+) 
 * **Database**: PostgreSQL (via Supabase) with `supabase-py`
-* **Workflow / AI**: LangGraph, Langchain, Scikit-learn, OpenAI (GPT-o3-mini)
+* **Workflow / AI**: LangGraph, Langchain, Scikit-learn, OpenAI (GPT-o3 / GPT-4o)
 * **Web3 Integration**: `web3.py`, `eth-abi`, Alchemy APIs
 * **Background Jobs**: Custom Python asynchronous worker polling (`worker.py`)
 * **Data parsing**: Pydantic schemas
@@ -71,7 +71,7 @@ The database uses PostgreSQL via Supabase.
    * Fields: `platform`, `agent_id`, `model_used`, `anomaly_score`, `ensip25_verified`, `onchain_tx_hash`, `started_at`, `created_at`
 4. **`agent_features`**
    * `wallet_address` (PK)
-   * `features` (JSONB) - Normalized 22 signals
+   * `features` (JSONB) - Normalized 33 signals
    * `raw_data` (JSONB) - Scraped raw blockchain/API data
    * Fields: `platform`, `agent_id`, `anomaly_score`, `is_anomaly`, `scored_at`, `pipeline_error`
 5. **`leaderboard_view`**
@@ -82,8 +82,9 @@ Scoring logic is decoupled into a clear pipeline via `LangGraph` (`app/pipeline/
 1. **Initialize State**: Start pipeline for a given wallet.
 2. **Crawlers**: Fetch on-chain Base RPC metrics, then call Virtuals, Olas, Fetch.ai, ERC-8004 APIs sequentially to collect raw signals.
 3. **ENSIP-25 Check**: Verify agent reputation anchors.
-4. **Compute Features**: Normalize raw metrics into exactly 22 floating-point signals. Execute IsolationForest anomaly detection (`anomaly.py`).
-5. **GPT Score**: Pass normalized features and platform context into `prompt.py`, where GPT-o3-mini returns a structured JSON mapping 0-1000 score, tier, strengths, and risks.
+4. **Compute Features**: Normalize raw metrics into exactly 33 floating-point signals. Execute IsolationForest anomaly detection (`anomaly.py`).
+5. **LLM Transaction Analysis**: Node 6.5 analyzes the last 50 transactions to detect behavioral patterns and risk indicators.
+6. **GPT Score**: Pass normalized features, transaction analysis, and platform context into `prompt.py`, where GPT-o3 / GPT-4o returns a structured JSON mapping 0-1000 score, tier, strengths, and risks.
 
 ## 7. Authentication and Authorization
 The API endpoints are generally unauthenticated for reading scores. 
@@ -91,7 +92,7 @@ Rate-limiting and authorization (e.g., API Keys) should be applied at an API Gat
 Database access uses Supabase with strong RLS (Row Level Security) and Service Role keys.
 
 ## 8. External Integrations
-* **OpenAI API**: GPT-o3-mini for qualitative model reasoning.
+* **OpenAI API**: GPT-o3 / GPT-4o for qualitative model reasoning.
 * **Alchemy**: Base and Ethereum JSON-RPC nodes to fetch balances, TX counts.
 * **Supabase**: PostgreSQL host and Realtime data socket backend.
 * **The Graph Protocol**: Subgraph querying.

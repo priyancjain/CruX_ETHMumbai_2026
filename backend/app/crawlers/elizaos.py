@@ -60,6 +60,11 @@ async def fetch_agent(wallet_address: str) -> dict:
     """
     try:
         settings = get_settings()
+        
+        if not wallet_address.lower().startswith("0x"):
+            logger.info(f"[ERC-8004] Skipped — {wallet_address} is not an EVM address")
+            return {"found": False}
+            
         checksum_addr = Web3.to_checksum_address(wallet_address)
 
         # Try ETH mainnet first, then Base

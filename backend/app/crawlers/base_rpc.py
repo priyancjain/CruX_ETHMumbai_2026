@@ -184,6 +184,18 @@ async def get_wallet_data(wallet_address: str) -> dict:
     settings = get_settings()
     wallet = wallet_address.lower()
 
+    if not wallet.startswith("0x"):
+        logger.info(f"[Alchemy] Skipped — {wallet} is not an EVM address")
+        return {
+            "wallet_age_days": 0, "tx_count_total": 0, "tx_count_90d": 0,
+            "last_seen_at_days": 999, "activity_streak_days": 0,
+            "defi_protocol_count": 0, "defi_protocols_used": [],
+            "balance_eth": 0.0, "balance_usdc": 0.0, "erc20_token_count": 0,
+            "nft_count": 0, "cross_chain_count": 0,
+            "unique_counterparties_90d": 0, "contract_deploy_count": 0,
+            "raw_transfers": [],
+        }
+
     base_rpc = settings.ALCHEMY_BASE_RPC
     eth_rpc = settings.ALCHEMY_ETH_RPC
 

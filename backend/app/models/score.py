@@ -12,12 +12,20 @@ class ScoreRequest(BaseModel):
     @field_validator("wallet_address")
     @classmethod
     def validate_wallet(cls, v: str) -> str:
-        if not v or len(v) != 42 or not v.startswith("0x"):
-            raise ValueError("Invalid EVM address format")
-        try:
-            return Web3.to_checksum_address(v)
-        except Exception:
-            raise ValueError("Invalid EVM address checksum")
+        if not v or len(v) < 30:
+            raise ValueError("Invalid address format")
+        
+        # EVM addresses
+        if v.startswith("0x"):
+            if len(v) != 42:
+                raise ValueError("Invalid EVM address format")
+            try:
+                return Web3.to_checksum_address(v)
+            except Exception:
+                raise ValueError("Invalid EVM address checksum")
+                
+        # Cosmos/Fetch.ai or other non-EVM addresses
+        return v
 
     @field_validator("priority")
     @classmethod

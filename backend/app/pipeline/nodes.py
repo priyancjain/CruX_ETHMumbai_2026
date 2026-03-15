@@ -1,10 +1,11 @@
 import asyncio
 import json
 import logging
+from datetime import datetime, timezone, timedelta
 from openai import OpenAI
 from app.config import get_settings
 from app.pipeline.state import AgentScoreState
-from app.pipeline.prompt import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE, ANOMALY_WARNING
+from app.pipeline.prompt import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE, ANOMALY_WARNING, TX_ANALYSIS_SECTION
 from app.crawlers import virtuals, olas, fetchai, elizaos, base_rpc
 from app.services.ensip25 import check_ensip25
 from app.services.anomaly import run_anomaly_detection
@@ -367,9 +368,9 @@ async def analyze_transactions(state: AgentScoreState) -> dict:
     for t in txs_for_analysis:
         val = t.get("value") or 0
         tx_lines.append(
-            f"  {t.get('timestamp', '?')[:19]} | {t.get('category', '?'):<8} | "
-            f"{t.get('asset', '?'):<8} | value={val} | "
-            f"from={t.get('from', '?')[:10]}... → to={t.get('to', '?')[:10]}..."
+            f"  {(t.get('timestamp') or '')[:19]} | {(t.get('category') or '?'):<8} | "
+            f"{(t.get('asset') or '?'):<8} | value={val} | "
+            f"from={(t.get('from') or '?')[:10]}... → to={(t.get('to') or '?')[:10]}..."
         )
 
     tx_text = "\n".join(tx_lines)
@@ -390,17 +391,10 @@ async def analyze_transactions(state: AgentScoreState) -> dict:
                 {"role": "user", "content": user_prompt},
             ],
             max_completion_tokens=2048,
+            response_format={"type": "json_object"},
         )
 
         raw_text = response.choices[0].message.content.strip()
-
-        # Parse JSON (handle markdown code blocks)
-        if raw_text.startswith("```"):
-            raw_text = raw_text.split("```")[1]
-            if raw_text.startswith("json"):
-                raw_text = raw_text[4:]
-            raw_text = raw_text.strip()
-
         tx_analysis = json.loads(raw_text)
 
         logger.info(f"  Activity Profile: {tx_analysis.get('activity_profile', '?')}")
@@ -423,25 +417,43 @@ async def analyze_transactions(state: AgentScoreState) -> dict:
         }}
 
 
-# ── NODE 7: Run GPT-o3 Scoring ──────────────────────────────────────────────
+# ── NODE 7: GPT Credit Scoring ───────────────────────────────────────────────
 async def run_gpt_o3(state: AgentScoreState) -> dict:
-    """Call OpenAI o3 to generate credit score."""
+    """Call GPT to generate credit score, anchored by deterministic base score."""
     logger.info(f"\n{'='*60}")
-    logger.info(f"  NODE 7: GPT-o3 CREDIT SCORING")
+    logger.info(f"  NODE 7: GPT CREDIT SCORING (base score + LLM adjustment)")
     logger.info(f"{'='*60}")
 
     settings = get_settings()
     features = state.get("features", {})
     anomaly = state.get("anomaly_result", {})
+    tx_analysis = state.get("tx_analysis", {})
+
+    # Compute deterministic base score
+    base_score = _compute_base_score(features)
+    base_tier = _score_to_tier(base_score)
+    logger.info(f"  Deterministic base score: {base_score} (Tier {base_tier})")
 
     # Build prompt
     system = SYSTEM_PROMPT
     if anomaly.get("is_anomaly"):
         system += ANOMALY_WARNING
 
+    # Build tx_analysis section
+    tx_section = ""
+    if tx_analysis and tx_analysis.get("summary"):
+        tx_section = TX_ANALYSIS_SECTION.format(
+            tx_summary=tx_analysis.get("summary", "N/A"),
+            tx_patterns=", ".join(tx_analysis.get("patterns", [])) or "none",
+            tx_risk_indicators=", ".join(tx_analysis.get("risk_indicators", [])) or "none",
+            tx_activity_profile=tx_analysis.get("activity_profile", "unknown"),
+        )
+
     user_prompt = USER_PROMPT_TEMPLATE.format(
         wallet_address=state["wallet_address"],
         platforms_list=", ".join(features.get("platforms_list", [])) or "unknown",
+        base_score=base_score,
+        base_tier=base_tier,
         wallet_age_days=features.get("wallet_age_days", 0),
         tx_count_90d=features.get("tx_count_90d", 0),
         tx_count_total=features.get("tx_count_total", 0),
@@ -478,6 +490,7 @@ async def run_gpt_o3(state: AgentScoreState) -> dict:
         token_diversity=features.get("token_diversity", 0),
         anomaly_score=features.get("anomaly_score", 0),
         is_anomaly=features.get("is_anomaly", False),
+        tx_analysis_section=tx_section,
     )
 
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -489,17 +502,10 @@ async def run_gpt_o3(state: AgentScoreState) -> dict:
             {"role": "user", "content": user_prompt},
         ],
         max_completion_tokens=settings.OPENAI_MAX_TOKENS,
+        response_format={"type": "json_object"},
     )
 
     raw_text = response.choices[0].message.content.strip()
-
-    # Parse JSON from response (handle markdown code blocks)
-    if raw_text.startswith("```"):
-        raw_text = raw_text.split("```")[1]
-        if raw_text.startswith("json"):
-            raw_text = raw_text[4:]
-        raw_text = raw_text.strip()
-
     gpt_response = json.loads(raw_text)
 
     # Validate tier/score consistency
@@ -521,8 +527,10 @@ async def run_gpt_o3(state: AgentScoreState) -> dict:
         gpt_response["max_loan_usdc"] = 5000
 
     logger.info(
-        f"\n  GPT-o3 RESULT:\n"
-        f"  {'Score':<20} = {gpt_response.get('score')}\n"
+        f"\n  GPT RESULT (model={settings.OPENAI_MODEL}):\n"
+        f"  {'Base Score':<20} = {base_score} (Tier {base_tier})\n"
+        f"  {'Final Score':<20} = {gpt_response.get('score')}\n"
+        f"  {'Adjustment':<20} = {gpt_response.get('score', 0) - base_score:+d}\n"
         f"  {'Tier':<20} = {gpt_response.get('tier')}\n"
         f"  {'Collateral':<20} = {gpt_response.get('collateral_requirement')}%\n"
         f"  {'Max Loan':<20} = ${gpt_response.get('max_loan_usdc'):,.0f} USDC\n"
@@ -563,6 +571,11 @@ async def save_score(state: AgentScoreState) -> dict:
     enriched_features["ensip25"] = ens_data
     enriched_features["tx_analysis"] = tx_analysis
 
+
+    # Calculate expiry (30 days)
+    scored_at = datetime.now(timezone.utc)
+    expires_at = scored_at + timedelta(days=30)
+
     score_row = {
         "agent_id": agent_id,
         "wallet_address": wallet,
@@ -574,15 +587,17 @@ async def save_score(state: AgentScoreState) -> dict:
         "key_factors": gpt.get("key_factors", []),
         "risk_flags": gpt.get("risk_flags", []),
         "raw_features": enriched_features,
-        "model_used": "o3",
+        "model_used": get_settings().OPENAI_MODEL,
         "anomaly_score": features.get("anomaly_score", 0),
         "is_anomaly": features.get("is_anomaly", False),
+        "scored_at": scored_at.isoformat(),
+        "expires_at": expires_at.isoformat(),
     }
 
     result = service_client.table("scores").insert(score_row).execute()
     score_id = result.data[0]["id"] if result.data else None
 
-    logger.info(f"  Score saved: id={score_id}, score={gpt['score']}, tier={gpt['tier']}")
+    logger.info(f"  Score saved: id={score_id}, score={gpt['score']}, tier={gpt['tier']} (expires {expires_at.isoformat()})")
 
     return {"score_id": score_id}
 
@@ -601,7 +616,7 @@ async def anchor_onchain(state: AgentScoreState) -> dict:
     score_id = state.get("score_id")
     if not score_id:
         logger.info("  Skipped: no score_id to anchor")
-        return {}
+        return {"agent_id": state.get("agent_id")}
 
     gpt = state.get("gpt_response", {})
     wallet = state["wallet_address"]
@@ -665,7 +680,144 @@ async def anchor_onchain(state: AgentScoreState) -> dict:
     else:
         logger.info(f"  ENS subname: skipped ({subname_result.get('error', 'not configured')})")
 
-    return {}
+    return {"agent_id": agent_id}
+
+
+# ── Deterministic Base Score ──────────────────────────────────────────────────
+def _compute_base_score(features: dict) -> int:
+    """
+    Compute a deterministic 0-1000 base score from metrics using concrete
+    piecewise-linear formulas. This anchors GPT scoring and ensures
+    differentiation across agents with different onchain profiles.
+    """
+    score = 0.0
+
+    def interp(val, breakpoints):
+        """Piecewise-linear interpolation. breakpoints = [(threshold, points), ...]"""
+        val = float(val or 0)
+        prev_t, prev_p = 0, 0
+        for t, p in breakpoints:
+            if val <= t:
+                frac = (val - prev_t) / max(t - prev_t, 1e-9)
+                return prev_p + frac * (p - prev_p)
+            prev_t, prev_p = t, p
+        return breakpoints[-1][1]  # cap at max
+
+    # Wallet Age → 0-80 pts
+    score += interp(features.get("wallet_age_days", 0),
+                    [(30, 20), (90, 40), (365, 60), (730, 80)])
+
+    # TX Count 90d → 0-100 pts
+    score += interp(features.get("tx_count_90d", 0),
+                    [(10, 25), (50, 50), (200, 80), (500, 100)])
+
+    # TX Count Total → 0-60 pts
+    score += interp(features.get("tx_count_total", 0),
+                    [(50, 15), (200, 30), (1000, 50), (5000, 60)])
+
+    # Last Seen (lower = better, invert) → 0-80 pts
+    last_seen = features.get("last_seen_at_days", 999)
+    if last_seen <= 0:
+        score += 80
+    elif last_seen <= 1:
+        score += 60
+    elif last_seen <= 7:
+        score += 40
+    elif last_seen <= 30:
+        score += 20
+    # >30 days: 0 pts
+
+    # Activity Streak → 0-50 pts
+    score += interp(features.get("activity_streak_days", 0),
+                    [(3, 10), (7, 20), (14, 35), (30, 50)])
+
+    # Unique Counterparties 90d → 0-60 pts
+    score += interp(features.get("unique_counterparties_90d", 0),
+                    [(5, 15), (15, 30), (30, 45), (50, 60)])
+
+    # DeFi Protocol Count → 0-80 pts
+    score += interp(features.get("defi_protocol_count", 0),
+                    [(1, 20), (3, 40), (5, 60), (7, 80)])
+
+    # Balance (ETH * $3000 + USDC) → 0-70 pts
+    balance_usd = float(features.get("balance_eth", 0)) * 3000 + float(features.get("balance_usdc", 0))
+    score += interp(balance_usd, [(100, 15), (1000, 30), (10000, 50), (50000, 70)])
+
+    # TVL → 0-80 pts
+    score += interp(features.get("tvl_usd", 0),
+                    [(1000, 20), (10000, 40), (100000, 65), (500000, 80)])
+
+    # Cross Chain Count → 0-40 pts
+    cc = int(features.get("cross_chain_count", 1))
+    if cc >= 3:
+        score += 40
+    elif cc >= 2:
+        score += 20
+
+    # Platform Count → 0-40 pts
+    pc = int(features.get("platform_count", 1))
+    if pc >= 3:
+        score += 40
+    elif pc >= 2:
+        score += 20
+
+    # NFT Count → 0-30 pts
+    score += interp(features.get("nft_count", 0),
+                    [(5, 10), (20, 20), (50, 30)])
+
+    # Contract Deploys → 0-40 pts
+    score += interp(features.get("contract_deploy_count", 0),
+                    [(1, 10), (3, 25), (5, 40)])
+
+    # ERC-8004 Reputation → 0-60 pts
+    score += interp(features.get("erc8004_reputation", 0),
+                    [(3, 15), (5, 30), (8, 50), (10, 60)])
+
+    # ENSIP-25 Verified → 0-30 pts
+    if features.get("ensip25_verified"):
+        score += 30
+
+    # Anomaly Penalty → 0 to -200
+    if features.get("is_anomaly"):
+        score -= 200
+    elif float(features.get("anomaly_score", 0)) < -0.3:
+        # Proportional penalty for borderline anomalies
+        score -= min(100, abs(float(features.get("anomaly_score", 0))) * 150)
+
+    # Financial Performance → 0-100 pts
+    fin_score = 0.0
+    pnl = float(features.get("total_pnl_usd", 0))
+    win_rate = float(features.get("win_rate", 0))
+    trades = int(features.get("total_trades", 0))
+    staking = float(features.get("staking_balance_usd", 0))
+
+    # PnL contribution (0-40)
+    if pnl > 0:
+        fin_score += interp(pnl, [(100, 10), (1000, 20), (10000, 30), (100000, 40)])
+    elif pnl < -1000:
+        fin_score -= 15
+
+    # Win rate (0-30) — only if enough trades
+    if trades >= 10:
+        if win_rate >= 70:
+            fin_score += 30
+        elif win_rate >= 50:
+            fin_score += 20
+        elif win_rate >= 30:
+            fin_score += 10
+
+    # Staking (0-20)
+    fin_score += interp(staking, [(100, 5), (1000, 10), (10000, 15), (50000, 20)])
+
+    # Trade volume bonus (0-10)
+    if trades >= 50:
+        fin_score += 10
+    elif trades >= 20:
+        fin_score += 5
+
+    score += max(0, min(100, fin_score))
+
+    return max(0, min(1000, int(score)))
 
 
 # ── Helper functions ─────────────────────────────────────────────────────────

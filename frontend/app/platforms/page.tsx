@@ -50,7 +50,7 @@ export default function PlatformsPage() {
           Platforms
         </h1>
         <p className="text-gray-400 text-sm font-body">
-          AgentScore reads agents from {platforms.length} external platforms — no registration required.
+          0xTrust reads agents from {platforms.length} external platforms — no registration required.
         </p>
       </div>
 

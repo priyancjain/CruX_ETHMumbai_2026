@@ -146,7 +146,9 @@ ALCHEMY_BASE_KEY=<your-alchemy-key>
 ALCHEMY_BASE_RPC=https://base-mainnet.g.alchemy.com/v2/<your-key>
 ALCHEMY_ETH_RPC=https://eth-mainnet.g.alchemy.com/v2/<your-key>
 OPENAI_API_KEY=<your-openai-key>
-OPENAI_MODEL=o3
+OPENAI_MODEL=gpt-4o
+HEYELSA_ENABLED=true
+NAMESTONE_API_KEY=<your-namestone-api-key>
 PORT=10000
 ```
 
