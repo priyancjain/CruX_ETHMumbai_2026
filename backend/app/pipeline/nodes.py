@@ -368,9 +368,9 @@ async def analyze_transactions(state: AgentScoreState) -> dict:
     for t in txs_for_analysis:
         val = t.get("value") or 0
         tx_lines.append(
-            f"  {t.get('timestamp', '?')[:19]} | {t.get('category', '?'):<8} | "
-            f"{t.get('asset', '?'):<8} | value={val} | "
-            f"from={t.get('from', '?')[:10]}... → to={t.get('to', '?')[:10]}..."
+            f"  {(t.get('timestamp') or '')[:19]} | {(t.get('category') or '?'):<8} | "
+            f"{(t.get('asset') or '?'):<8} | value={val} | "
+            f"from={(t.get('from') or '?')[:10]}... → to={(t.get('to') or '?')[:10]}..."
         )
 
     tx_text = "\n".join(tx_lines)
@@ -609,7 +609,7 @@ async def anchor_onchain(state: AgentScoreState) -> dict:
     score_id = state.get("score_id")
     if not score_id:
         logger.info("  Skipped: no score_id to anchor")
-        return {}
+        return {"agent_id": state.get("agent_id")}
 
     gpt = state.get("gpt_response", {})
     wallet = state["wallet_address"]
@@ -673,7 +673,7 @@ async def anchor_onchain(state: AgentScoreState) -> dict:
     else:
         logger.info(f"  ENS subname: skipped ({subname_result.get('error', 'not configured')})")
 
-    return {}
+    return {"agent_id": agent_id}
 
 
 # ── Helper functions ─────────────────────────────────────────────────────────

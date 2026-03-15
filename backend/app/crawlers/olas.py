@@ -39,6 +39,10 @@ async def fetch_agent(wallet_address: str) -> dict:
         urls = _get_urls()
         wallet_lower = wallet_address.lower()
 
+        if not wallet_lower.startswith("0x"):
+            logger.info(f"[Olas] Skipped — {wallet_address} is not an EVM address")
+            return {"found": False}
+
         async with http_client() as client:
             # Step 1: Search by multisig address (service wallet)
             multisig_query = """

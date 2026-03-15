@@ -173,6 +173,30 @@ async def get_agent(wallet_address: str):
     )
 
     if not agent_result.data:
+        # Check if there is a pending scoring request before throwing 404
+        request_result = (
+            anon_client.table("score_requests")
+            .select("id, status, created_at")
+            .ilike("wallet_address", w_low)
+            .in_("status", ["pending", "processing"])
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if request_result.data:
+            # Return a stub profile to the frontend to show "Scoring in Progress"
+            return {
+                "agent": {
+                    "wallet_address": wallet_address,
+                    "agent_name": f"Agent-{wallet_address[:8]}",
+                    "platform": "unknown",
+                    "is_active": True,
+                },
+                "latest_score": None,
+                "features": None,
+                "pnl": None,
+                "pending_request": request_result.data[0],
+            }
         raise HTTPException(status_code=404, detail="Agent not found")
 
     agent = agent_result.data[0]
