@@ -14,8 +14,8 @@ FastAPI routers act purely as controllers. They receive HTTP requests, parse inp
 
 ### B. Service Layer (`app/services/`)
 - **`supabase.py`**: Wraps the `supabase-py` client. Uses a custom lazy-loading proxy so that the connection isn't initialized before `config.py` has loaded the `.env` file during startup. Exposes helper functions like `get_latest_score`, `update_request_status`, and `get_agents`.
-- **`scoring.py`**: The orchestration layer. It triggers the LangGraph pipeline, receives the final calculated score and 22-signal vector, and executes the SQL `UPSERT` commands to write to the `agent_features` and `scores` tables.
-- **`anomaly.py`**: Uses `scikit-learn`'s `IsolationForest` to analyze the 22-signal vector against historical baselines to flag potentially manipulative on-chain behavior.
+- **`scoring.py`**: The orchestration layer. It triggers the LangGraph pipeline, receives the final calculated score and 33-signal vector, and executes the SQL `UPSERT` commands to write to the `agent_features` and `scores` tables.
+- **`anomaly.py`**: Uses `scikit-learn`'s `IsolationForest` to analyze numeric features from the 33-signal vector against historical baselines to flag potentially manipulative on-chain behavior.
 
 ### C. Pipeline Layer (`app/pipeline/`)
 The core ML logic utilizes **LangGraph** to construct a deterministic, multi-step pipeline for evaluating an agent.
@@ -25,9 +25,10 @@ The core ML logic utilizes **LangGraph** to construct a deterministic, multi-ste
   - `node_init`
   - `node_fetch_base_rpc` (Hits Alchemy)
   - `node_fetch_virtuals`, `..._olas`, `..._fetch`, `..._erc8004` (Hits respective external APIs via logic in `app/crawlers/`)
-  - `node_check_ensip25` (Validates agent ownership and capabilities text records inside ENS)
-  - `node_compute_features` (Mathematical normalization of raw JSON API data into exactly 22 floating-point values between 0-100)
-  - `node_gpt_score` (Packages the 22 signals into a JSON prompt and sends to OpenAI GPT-o3-mini for a qualitative text analysis and 0-1000 grade).
+  - `node_check_ensip25` (Validates agent ownership and capabilities text records inside ENS using ENSIP-25 and NameStone)
+  - `node_compute_features` (Mathematical normalization of raw JSON API data into exactly 33 floating-point values)
+  - `node_analyze_transactions` (LLM-powered behavioral analysis of the last 50 transactions to detect risk/growth patterns)
+  - `node_gpt_score` (Packages the 33 signals into a JSON prompt and sends to OpenAI GPT-4o for a qualitative grade).
 - **`prompt.py`**: Stores the heavy system prompts directing GPT-o3 on how to interpret the signals as a "Credit Bureau Examiner".
 
 ### D. Asynchronous Job Worker (`worker.py`)
@@ -54,7 +55,7 @@ graph TD
     LangGraph --> CrawlerNodes[Crawlers: Alchemy, Virtuals API, etc]
     CrawlerNodes --> Normalization[Feature Normalization]
     Normalization --> Anomaly[Isolation Forest]
-    Normalization --> OpenAI[GPT-o3-mini]
+    Normalization --> OpenAI[GPT-o3 / GPT-4o]
     Anomaly --> OpenAI
 
     OpenAI -->|JSON Score & Rationale| Scoring
@@ -113,7 +114,7 @@ Queue state management.
 - `completed_at` (timestamptz, nullable)
 
 ### `agent_features`
-Stores the exact 22-signal vector that generated the score, used for retraining ML models.
+Stores the exact 33-signal vector that generated the score, used for retraining ML models.
 - `wallet_address` (text, PK)
 - `agent_id` (text, nullable)
 - `platform` (text)
