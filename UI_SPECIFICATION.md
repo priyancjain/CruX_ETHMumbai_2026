@@ -9,7 +9,7 @@ This document is a complete UI specification and rebuild guide for the **AgentSc
 **AgentScore** is a "CIBIL (Credit Bureau) for AI Agents" built to evaluate autonomous AI agents across various platforms (Virtuals, ElizaOS, Olas, Fetch.ai, ERC-8004). 
 The frontend provides a sleek, dark-themed dashboard where users can:
 - Search for agents by wallet address or ENS name.
-- View a detailed credit scorecard, including a 22-signal radar chart, tier rating (S, A, B, C, D), and automated AI-driven rationale.
+- View a detailed credit scorecard, including a 33-signal radar chart, tier rating (S, A, B, C, D), and automated AI-driven rationale.
 - Browse a global leaderboard of the highest-rated AI agents.
 - Explore different AI platforms and their scoring methodologies.
 
@@ -49,7 +49,7 @@ The project strictly follows the Next.js App Router paradigm:
  ├── /components            # Reusable UI components
  │    ├── AgentTable.tsx    # Sortable data table for leaderboard
  │    ├── ConnectWallet.tsx # RainbowKit wrapper
- │    ├── FeatureRadar.tsx  # Recharts Radar for 22 signals
+ │    ├── FeatureRadar.tsx  # Recharts Radar for 33 signals
  │    ├── PlatformBadge.tsx # Colored pill indicators
  │    ├── providers.tsx     # Context providers (Wagmi, Query, etc)
  │    ├── ScoreCard.tsx     # Animated SVG ring & Tier display
@@ -103,8 +103,10 @@ The main UI dashboard (`/agent/[wallet]`) is constructed using standard CSS Grid
 - **Main Container**: `max-w-6xl mx-auto px-6 py-8`.
 - **Grid Layout**: `grid grid-cols-1 lg:grid-cols-3 gap-6`.
   - **Widget 1 (Left - 1 col)**: `ScoreCard.tsx` (Current Tier, circular progress, loan logic, GPT-o3 rationales).
-  - **Widget 2 (Right - 2 cols)**: `FeatureRadar.tsx` (Data visualization of 22 signals divided into 4 key quadrants).
-  - **Widget 3 (Bottom - Full width)**: `ScoreHistory.tsx` (Time series line chart bridging the full width).
+  - **Widget 2 (Right - 2 cols)**: `FeatureRadar.tsx` (Data visualization of 33 signals divided into 4 key quadrants).
+  - **Widget 3 (Bottom Left - 1 col)**: `TransactionCharts.tsx` (Pie chart for asset distribution).
+  - **Widget 4 (Bottom Right - 2 cols)**: `TransactionCharts.tsx` (Line chart for activity over time).
+  - **Widget 5 (Full width)**: `TransactionTable.tsx` (Advanced filtering: Type, Asset, Network).
 - **Footer**: Agent metadata (First seen, Platform, ENS).
 
 ---
@@ -116,8 +118,16 @@ The main UI dashboard (`/agent/[wallet]`) is constructed using standard CSS Grid
 - **Functionality**: Uses `framer-motion` to animate an SVG circle representing the 0-1000 score. Displays Maximum Loan and Collateral Requirements. Lists GPT-o3 rationales, strengths, and risk flags.
 
 ### `FeatureRadar.tsx`
-- **Props**: `features` (Record of 22 signals).
-- **Functionality**: Normalizes the 22 signals into a 0-100 scale. Wraps a Recharts `<RadarChart>` representing 4 main categories (On-Chain, Token, Protocol, Behavioral). Underneath the radar, displays a neat grid of miniature progress bars for every single individual metric.
+- **Props**: `features` (Record of 33 signals).
+- **Functionality**: Normalizes the 33 signals into a 0-100 scale. Wraps a Recharts `<RadarChart>` representing 5 main categories (Activity, Economics, Reputation, Safety, Market).
+
+### `TransactionCharts.tsx`
+- **Props**: `transactions` (Array)
+- **Functionality**: Renders a Donut chart for Asset Distribution and a Area chart for Transaction Volume over time.
+
+### `TransactionTable.tsx`
+- **Props**: `transactions` (Array)
+- **Functionality**: Renders a filterable table. Filter by **Transaction Type** (ERC20, External), **Asset** (ETH, USDC, virtuals), and **Network** (Base, ETH).
 
 ### `AgentTable.tsx`
 - **Props**: `agents` (Array of data), `loading` (boolean).

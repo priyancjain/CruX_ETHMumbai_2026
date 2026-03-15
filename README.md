@@ -56,10 +56,10 @@
 | Platform | Status | Source | File |
 |----------|--------|--------|------|
 | Virtuals | Done | REST API (21k+ agents) | `app/crawlers/virtuals.py` |
-| Olas | Done | GraphQL subgraph (ETH + Gnosis) | `app/crawlers/olas.py` |
+| Olas | Done | GraphQL `agentRegistrations` (ETH + Gnosis) | `app/crawlers/olas.py` |
 | Fetch.ai | Done | Agentverse API | `app/crawlers/fetchai.py` |
 | ElizaOS / ERC-8004 | Done | ERC-721 + Reputation registry | `app/crawlers/elizaos.py` |
-| Base onchain | Done | Alchemy RPC (transfers, balances, NFTs) | `app/crawlers/base_rpc.py` |
+| Base onchain | Done | Alchemy RPC + HeyElsa x402 Enrichment | `app/crawlers/base_rpc.py` |
 | Talus | Not built | — | — |
 | Wayfinder | Not built | — | — |
 | Freysa | Not built | — | — |
@@ -74,11 +74,12 @@ All 9 nodes are implemented in `app/pipeline/nodes.py`:
 2. **fetch_onchain** — Alchemy RPC for wallet data + HeyElsa DeFi enrichment
 3. **fetch_erc8004** — ERC-8004 Identity + Reputation registry reads
 4. **fetch_ens_ensip25** — ENS reverse resolution + ENSIP-25 text record verification
-5. **aggregate_features** — Merges all data into 25-field feature vector, upserts to Supabase
-6. **run_anomaly** — IsolationForest on 7 numeric features (contamination=5%)
-7. **run_gpt_o3** — OpenAI o3 scoring with structured JSON output
+5. **aggregate_features** — Merges all data into **33-field feature vector**, upserts to Supabase
+6. **run_anomaly** — IsolationForest on 13 numeric features (contamination=5%)
+6.5 **analyze_transactions** — LLM-powered behavioral breakdown of last 50 transactions
+7. **run_gpt_o3** — OpenAI o3/4o reasoning with structured JSON output
 8. **save_score** — Inserts score record into Supabase
-9. **anchor_onchain** — Score hash anchoring to Base (skips gracefully if no contract/gas)
+9. **anchor_onchain** — Score hash anchoring to Base Sepolia + Gasless ENS subname (NameStone)
 
 Pipeline graph: `app/pipeline/graph.py` | State: `app/pipeline/state.py` | Prompts: `app/pipeline/prompt.py`
 
@@ -86,7 +87,7 @@ Pipeline graph: `app/pipeline/graph.py` | State: `app/pipeline/state.py` | Promp
 
 | Service | Status | File |
 |---------|--------|------|
-| Feature aggregation (25 signals) | Done | `app/services/features.py` |
+| Feature aggregation (33 signals) | Done | `app/services/features.py` |
 | Anomaly detection (IsolationForest) | Done | `app/services/anomaly.py` |
 | ENSIP-25 verification | Done | `app/services/ensip25.py` |
 | HeyElsa x402 micropayments | Done | `app/services/heyelsa.py` |
@@ -141,31 +142,27 @@ Pipeline graph: `app/pipeline/graph.py` | State: `app/pipeline/state.py` | Promp
 
 ## Scoring Logic
 
-### 25-Signal Feature Vector
+### 33-Signal Feature Vector
 
-Aggregated from 5 crawlers + Alchemy RPC + HeyElsa + ENS:
+Aggregated from 5 crawlers + Alchemy RPC + HeyElsa + ENS + ML:
 
 | Signal | Weight | Source |
 |--------|--------|--------|
-| wallet_age_days | HIGH | Alchemy ETH |
-| tx_count_90d | HIGH | Alchemy Base |
-| tvl_usd | HIGH | HeyElsa / estimated |
-| defi_protocol_count | HIGH | Alchemy Base |
-| erc8004_reputation (0-10) | HIGH | ERC-8004 contract |
-| erc8004_job_count | HIGH | ERC-8004 contract |
+| wallet_age_days | HIGH | Alchemy |
+| tx_count_90d | HIGH | Alchemy |
+| net_pnl_usd | HIGH | HeyElsa |
+| tvl_usd | HIGH | HeyElsa / Alchemy |
+| defi_protocol_count | HIGH | Alchemy / HeyElsa |
+| erc8004_reputation | HIGH | ERC-8004 |
 | anomaly_score | HIGH | IsolationForest |
-| is_anomaly | HIGH | IsolationForest |
-| ensip25_verified | MEDIUM | ENS ETH mainnet |
-| cross_chain_count | MEDIUM | Alchemy multi-chain |
-| platform_count | MEDIUM | All crawlers |
-| tee_secured | MEDIUM | Not yet implemented |
-| olas_job_count | MEDIUM | Olas subgraph |
-| tx_count_total | LOW | Alchemy ETH |
-| balance_eth | LOW | Alchemy Base |
-| balance_usdc | LOW | Alchemy Base |
-| nft_count | LOW | Alchemy Base |
-| virtuals_mcap_usd | LOW | Virtuals API |
-| virtuals_holder_count | LOW | Virtuals API |
+| tx_analysis_summary | HIGH | LLM (GPT-o3) |
+| ensip25_verified | MEDIUM | ENS |
+| ens_subname | MEDIUM | NameStone |
+| platform_count | MEDIUM | Crawlers |
+| token_diversity | MEDIUM | HeyElsa |
+| win_rate | MEDIUM | HeyElsa |
+| olas_job_count | LOW | Olas Subgraph |
+| mcap_usd | LOW | Virtuals |
 
 ### Scoring Tiers
 
